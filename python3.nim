@@ -37,19 +37,27 @@ const
   pySingleInput* = 256
   pyFileInput*   = 257
   pyEvalInput*   = 258
-  # Max static block nesting within a function
-  CO_FUTURE_DIVISION* = 8192
-  # This bit can be set in flags to cause division operator / to be
-  # interpreted as “true division” according to PEP 238
-  CO_MAXBLOCKS* = 20
   # Method object constants
-  METH_VARARGS*  = 0x0001
-  METH_KEYWORDS* = 0x0002
-  METH_NOARGS*   = 0x0004
-  METH_O*        = 0x0008
-  METH_CLASS*    = 0x0010
-  METH_STATIC*   = 0x0020
-  METH_COEXIST*  = 0x0040
+  methOldargs* = 0x0000
+  methVarargs* = 0x0001
+  methKeywords* = 0x0002
+  methNoargs* = 0x0004
+  methO* = 0x0008
+  methClass* = 0x0010
+  methStatic* = 0x0020
+  methCoexist* = 0x0040
+  # Masks for the co_flags field of PyCodeObject
+  coOptimized* = 0x0001
+  coNewlocals* = 0x0002
+  coVarargs* = 0x0004
+  coVarkeywords* = 0x0008
+  coNested* = 0x0010
+  coMaxBlocks* = 0x0014
+  coGenerator* = 0x0020
+  coFutureDivision* = 0x2000
+  coFutureAbsoluteImport* = 0x4000
+  coFutureWithStatement* = 0x8000
+  coFuturePrintFunction* = 0x10000
 
 
 type
@@ -60,7 +68,7 @@ type
   WideCStringPtr* = ptr WideCString
   PyUnicodePtr* = ptr PyUnicode
   PyUnicode* = string # C definition: 'typedef wchar_t Py_UNICODE;'
-  PyOS_sighandler_t* = proc (parameter: cint) {.cdecl.}
+  PyosSighandler* = proc (parameter: cint) {.cdecl.}
   
   # Function pointers used for various Python methods
   FreeFunc* = proc (p: pointer){.cdecl.}
@@ -103,78 +111,78 @@ type
   PyObjectPtrPtr* = ptr PyObjectPtr
   PyObjectPtr* = ptr PyObject
   PyObject* {.pure, inheritable.} = object # Defined in "Include/object.h"
-    ob_refcnt*: PySizeT
-    ob_type*: PyTypeObjectPtr
+    obRefcnt*: PySizeT
+    obType*: PyTypeObjectPtr
   
   PyTypeObjectPtr* = ptr PyTypeObject
   PyTypeObject* = object of PyObject  # Defined in "Include/object.h"
     # 'ob_base*: PyVarObject' isn't here because the object already inherits from PyObject
-    ob_size*: PySizeT
-    tp_name*: cstring
-    tp_basicsize*: PySizeT
-    tp_itemsize*: PySizeT
+    obSize*: PySizeT
+    tpName*: cstring
+    tpBasicsize*: PySizeT
+    tpItemsize*: PySizeT
     # Methods to implement standard operations
-    tp_dealloc*: Destructor
-    tp_print*: PrintFunc
-    tp_getattr*: GetAttrFunc
-    tp_setattr*: SetAttrFunc
-    tp_reserved*: pointer # formerly known as tp_compare
-    tp_repr*: ReprFunc
+    tpDealloc*: Destructor
+    tpPrint*: PrintFunc
+    tpGetattr*: GetAttrFunc
+    tpSetattr*: SetAttrFunc
+    tpReserved*: pointer # formerly known as tp_compare
+    tpRepr*: ReprFunc
     # Method suites for standard classes
-    tp_as_number*: PyNumberMethodsPtr
-    tp_as_sequence*: PySequenceMethodsPtr
-    tp_as_mapping*: PyMappingMethodsPtr 
+    tpAsNumber*: PyNumberMethodsPtr
+    tpAsSequence*: PySequenceMethodsPtr
+    tpAsMapping*: PyMappingMethodsPtr 
     # More standard operations (here for binary compatibility)
-    tp_hash*: HashFunc
-    tp_call*: TernaryFunc
-    tp_str*: ReprFunc
-    tp_getattro*: GetAttrOFunc
-    tp_setattro*: SetAttrOFunc
+    tpHash*: HashFunc
+    tpCall*: TernaryFunc
+    tpStr*: ReprFunc
+    tpGetattro*: GetAttrOFunc
+    tpSetattro*: SetAttrOFunc
     # Functions to access object as input/output buffer
-    tp_as_buffer*: PyBufferProcsPtr
+    tpAsBuffer*: PyBufferProcsPtr
     # Flags to define presence of optional/expanded features
-    tp_flags*: int32
+    tpFlags*: int32
     # Documentation string
-    tp_doc*: cstring
+    tpDoc*: cstring
     # Call function for all accessible objects
-    tp_traverse*: TraverseProc
+    tpTraverse*: TraverseProc
     # Delete references to contained objects
-    tp_clear*: Inquiry       
+    tpClear*: Inquiry       
     # Rich comparisons
-    tp_richcompare*: RichCmpFunc 
+    tpRichcompare*: RichCmpFunc 
     # Weak reference enabler
-    tp_weaklistoffset*: PySizeT 
+    tpWeaklistoffset*: PySizeT 
     # Iterators
-    tp_iter*: GetIterFunc
-    tp_iternext*: IterNextFunc 
+    tpIter*: GetIterFunc
+    tpIternext*: IterNextFunc 
     # Attribute descriptor and subclassing stuff
-    tp_methods*: PyMethodDefPtr
-    tp_members*: PyMemberDefPtr
-    tp_getset*: PyGetSetDefPtr
-    tp_base*: PyTypeObjectPtr
-    tp_dict*: PyObjectPtr
-    tp_descr_get*: DescrGetFunc
-    tp_descr_set*: DescrSetFunc
-    tp_dictoffset*: PySizeT
-    tp_init*: InitProc
-    tp_alloc*: AllocFunc
-    tp_new*: NewFunc
-    tp_free*: FreeFunc # Low-level free-memory routine
-    tp_is_gc*: Inquiry  # For PyObject_IS_GC
-    tp_bases*: PyObjectPtr
-    tp_mro*: PyObjectPtr    # method resolution order
-    tp_cache*: PyObjectPtr
-    tp_subclasses*: PyObjectPtr
-    tp_weaklist*: PyObjectPtr
-    tp_del*: Destructor
-    tp_version_tag*: uint # Type attribute cache version tag
-    tp_finalize*: Destructor
+    tpMethods*: PyMethodDefPtr
+    tpMembers*: PyMemberDefPtr
+    tpGetset*: PyGetSetDefPtr
+    tpBase*: PyTypeObjectPtr
+    tpDict*: PyObjectPtr
+    tpDescrGet*: DescrGetFunc
+    tpDescrSet*: DescrSetFunc
+    tpDictoffset*: PySizeT
+    tpInit*: InitProc
+    tpAlloc*: AllocFunc
+    tpNew*: NewFunc
+    tpFree*: FreeFunc # Low-level free-memory routine
+    tpIsGc*: Inquiry  # For PyObject_IS_GC
+    tpBases*: PyObjectPtr
+    tpMro*: PyObjectPtr    # method resolution order
+    tpCache*: PyObjectPtr
+    tpSubclasses*: PyObjectPtr
+    tpWeaklist*: PyObjectPtr
+    tpDel*: Destructor
+    tpVersionTag*: uint # Type attribute cache version tag
+    tpFinalize*: Destructor
     # These must be last and never explicitly initialized
-    tp_allocs*: PySizeT 
-    tp_frees*: PySizeT 
-    tp_maxalloc*: PySizeT
-    tp_prev*: PyTypeObjectPtr
-    tp_next*: PyTypeObjectPtr
+    tpAllocs*: PySizeT 
+    tpFrees*: PySizeT 
+    tpMaxalloc*: PySizeT
+    tpPrev*: PyTypeObjectPtr
+    tpNext*: PyTypeObjectPtr
   
   PyBufferPtr* = ptr PyBuffer
   PyBuffer* {.pure, inheritable.} = object # Defined in "Include/object.h"
@@ -192,56 +200,56 @@ type
   
   PyNumberMethodsPtr* = ptr PyNumberMethods
   PyNumberMethods*{.final.} = object # Defined in "Include/object.h"
-    nb_add*: BinaryFunc
-    nb_substract*: BinaryFunc
-    nb_multiply*: BinaryFunc
-    nb_remainder*: BinaryFunc
-    nb_divmod*: BinaryFunc
-    nb_power*: TernaryFunc
-    nb_negative*: UnaryFunc
-    nb_positive*: UnaryFunc
-    nb_absolute*: UnaryFunc
-    nb_bool*: Inquiry
-    nb_invert*: UnaryFunc
-    nb_lshift*: BinaryFunc
-    nb_rshift*: BinaryFunc
-    nb_and*: BinaryFunc
-    nb_xor*: BinaryFunc
-    nb_or*: BinaryFunc
-    nb_int*: UnaryFunc
-    nb_reserved*: pointer
-    nb_float*: UnaryFunc     
+    nbAdd*: BinaryFunc
+    nbSubstract*: BinaryFunc
+    nbMultiply*: BinaryFunc
+    nbRemainder*: BinaryFunc
+    nbDivmod*: BinaryFunc
+    nbPower*: TernaryFunc
+    nbNegative*: UnaryFunc
+    nbPositive*: UnaryFunc
+    nbAbsolute*: UnaryFunc
+    nbBool*: Inquiry
+    nbInvert*: UnaryFunc
+    nbLshift*: BinaryFunc
+    nbRshift*: BinaryFunc
+    nbAnd*: BinaryFunc
+    nbXor*: BinaryFunc
+    nbOr*: BinaryFunc
+    nbInt*: UnaryFunc
+    nbReserved*: pointer
+    nbFloat*: UnaryFunc     
     
-    nb_inplace_add*: BinaryFunc
-    nb_inplace_subtract*: BinaryFunc
-    nb_inplace_multiply*: BinaryFunc
-    nb_inplace_remainder*: BinaryFunc
-    nb_inplace_power*: TernaryFunc
-    nb_inplace_lshift*: BinaryFunc
-    nb_inplace_rshift*: BinaryFunc
-    nb_inplace_and*: BinaryFunc
-    nb_inplace_xor*: BinaryFunc
-    nb_inplace_or*: BinaryFunc
+    nbInplaceAdd*: BinaryFunc
+    nbInplaceSubtract*: BinaryFunc
+    nbInplaceMultiply*: BinaryFunc
+    nbInplaceRemainder*: BinaryFunc
+    nbInplacePower*: TernaryFunc
+    nbInplaceLshift*: BinaryFunc
+    nbInplaceRshift*: BinaryFunc
+    nbInplaceAnd*: BinaryFunc
+    nbInplaceXor*: BinaryFunc
+    nbInplaceOr*: BinaryFunc
     
-    nb_floor_divide*: BinaryFunc
-    nb_true_divide*: BinaryFunc
-    nb_inplace_floor_divide*: BinaryFunc
-    nb_inplace_true_divide*: BinaryFunc
+    nbFloorDivide*: BinaryFunc
+    nbTrueDivide*: BinaryFunc
+    nbInplaceFloorDivide*: BinaryFunc
+    nbInplaceTrueDivide*: BinaryFunc
     
-    nb_index*: UnaryFunc
+    nbIndex*: UnaryFunc
   
   PySequenceMethodsPtr* = ptr PySequenceMethods
   PySequenceMethods*{.final.} = object    # Defined in "Include/object.h"
-    sq_length*: LenFunc
-    sq_concat*: BinaryFunc
-    sq_repeat*: PySizeArgFunc
-    sq_item*: PySizeArgFunc
-    was_sq_slice*: pointer
-    sq_ass_item*: PySizeObjArgFunc
-    was_sq_ass_slice*: pointer 
-    sq_contains*: ObjObjProc
-    sq_inplace_concat*: BinaryFunc
-    sq_inplace_repeat*: PySizeArgFunc
+    sqLength*: LenFunc
+    sqConcat*: BinaryFunc
+    sqRepeat*: PySizeArgFunc
+    sqItem*: PySizeArgFunc
+    wasSqSlice*: pointer
+    sqAssItem*: PySizeObjArgFunc
+    wasSqAssSlice*: pointer 
+    sqContains*: ObjObjProc
+    sqInplaceConcat*: BinaryFunc
+    sqInplaceRepeat*: PySizeArgFunc
   
   PyMappingMethodsPtr* = ptr PyMappingMethods 
   PyMappingMethods*{.final.} = object # Defined in "Include/object.h"
@@ -251,15 +259,15 @@ type
   
   PyBufferProcsPtr* = ptr PyBufferProcs
   PyBufferProcs*{.final.} = object    # Defined in "Include/object.h"
-    bf_getbuffer*: GetBufferProc
-    bf_releasebuffer*: ReleaseBufferProc
+    bfGetbuffer*: GetBufferProc
+    bfReleasebuffer*: ReleaseBufferProc
   
   PyMethodDefPtr* = ptr PyMethodDef
   PyMethodDef*{.final.} = object  # Defined in "Include/methodobject.h"
-    ml_name*: cstring
-    ml_meth*: PyCFunction
-    ml_flags*: int
-    ml_doc*: cstring
+    mlName*: cstring
+    mlMeth*: PyCFunction
+    mlFlags*: int
+    mlDoc*: cstring
   
   PyMemberDefPtr* = ptr PyMemberDef
   PyMemberDef*{.final.} = object  # Defined in "Include/structmember.h"
@@ -279,70 +287,70 @@ type
   
   PyVarObjectPtr* = ptr PyVarObject
   PyVarObject* = object # Defined in "Include/object.h"
-    ob_base*: PyObject
-    ob_size*: PySizeT
+    obBase*: PyObject
+    obSize*: PySizeT
 
   PyCompilerFlagsPtr* = ptr PyCompilerFlags
   PyCompilerFlags* = object # Defined in "Include/pythonrun.h"
-    cf_flags: int
+    cfFlags: int
   
   PyNodePtr* = ptr PyNode
   PyNode* = object # Defined in "Include/node.h"
-    n_type: int16
-    n_str: cstring
-    n_lineno: int
-    n_col_offset: int
-    n_nchildren: int
-    n_child: PyNodePtr
+    nType: int16
+    nStr: cstring
+    nLineno: int
+    nColOffset: int
+    nNchildren: int
+    nChild: PyNodePtr
 
   PyTryBlockPtr* = ptr PyTryBlock
   PyTryBlock = object # Defined in "Include/frameobject.h"
-    b_type: int # what kind of block this is
-    b_handler: int # where to jump to find handler
-    b_level: int # value stack level to pop to
+    bType: int # what kind of block this is
+    bHandler: int # where to jump to find handler
+    bLevel: int # value stack level to pop to
 
   PyCodeObjectPtr* = ptr PyCodeObject
   PyCodeObject = object   # Defined in "Include/code.h"
-    ob_base*: PyObject
-    co_argcount*: int   # arguments, except *args 
-    co_kwonlyargcount*: int # keyword only arguments
-    co_nlocals*: int    # local variables
-    co_stacksize*: int  # entries needed for evaluation stack
-    co_flags*: int  # CO_..., see below
-    co_code*: PyObjectPtr   # instruction opcodes
-    co_consts*: PyObjectPtr # list (constants used)
-    co_names*: PyObjectPtr  # list of strings (names used)
-    co_varnames*: PyObjectPtr   # tuple of strings (local variable names)
-    co_freevars*: PyObjectPtr   # tuple of strings (free variable names)
-    co_cellvars*: PyObjectPtr   # tuple of strings (cell variable names)
+    obBase*: PyObject
+    coArgcount*: int   # arguments, except *args 
+    coKwonlyargcount*: int # keyword only arguments
+    coNlocals*: int    # local variables
+    coStacksize*: int  # entries needed for evaluation stack
+    coFlags*: int  # CO..., see below
+    coCode*: PyObjectPtr   # instruction opcodes
+    coConsts*: PyObjectPtr # list (constants used)
+    coNames*: PyObjectPtr  # list of strings (names used)
+    coVarnames*: PyObjectPtr   # tuple of strings (local variable names)
+    coFreevars*: PyObjectPtr   # tuple of strings (free variable names)
+    coCellvars*: PyObjectPtr   # tuple of strings (cell variable names)
     # The rest doesn't count for hash or comparisons
-    co_cell2arg*: ptr uint8 # Maps cell vars which are arguments
-    co_filename*: PyObjectPtr   # unicode (where it was loaded from)
-    co_name*: PyObjectPtr   # unicode (name, for reference)
-    co_firstlineno*: int    # first source line number
-    co_lnotab*: PyObjectPtr # string (encoding addr<->lineno mapping) See Objects/lnotab_notes.txt for details.
-    co_zombieframe*: pointer    # for optimization only (see frameobject.c)
-    co_weakreflist*: PyObjectPtr    # to support weakrefs to code objects
+    coCell2arg*: ptr uint8 # Maps cell vars which are arguments
+    coFilename*: PyObjectPtr   # unicode (where it was loaded from)
+    coName*: PyObjectPtr   # unicode (name, for reference)
+    coFirstlineno*: int    # first source line number
+    coLnotab*: PyObjectPtr # string (encoding addr<->lineno mapping) See Objects/lnotabNotes.txt for details.
+    coZombieframe*: pointer    # for optimization only (see frameobject.c)
+    coWeakreflist*: PyObjectPtr    # to support weakrefs to code objects
 
   PyFrameObjectPtr* = ptr PyFrameObject
   PyFrameObject* = object # Defined in "Include/frameobject.h"
-    ob_base*: PyVarObject
-    f_back*: PyFrameObjectPtr   # previous frame, or NULL
-    f_code*: PyCodeObject       # code segment
-    f_builtins*: PyObjectPtr    # builtin symbol table (PyDictObject)
-    f_globals*: PyObjectPtr     # global symbol table (PyDictObject)
-    f_locals*: PyObjectPtr      # local symbol table (any mapping)
-    f_valuestack*: PyObjectPtrPtr   # points after the last local
-    f_stacktop*: PyObjectPtrPtr     # points after the last local
-    f_trace*: PyObjectPtr   # Trace function
-    f_exc_type*, f_exc_value*, f_exc_traceback*: PyObjectPtr
-    f_gen*: PyObjectPtr # Borrowed reference to a generator, or NULL
-    f_lasti*: int   # Last instruction if called
-    f_lineno*: int  # Current line number
-    f_iblock*: int  # index in f_blockstack
-    f_executing*: int8  # whether the frame is still executing
-    f_blockstack: array[0..CO_MAXBLOCKS-1, PyTryBlock]  # for try and loop blocks
-    f_localsplus*: UncheckedArray[PyObjectPtr]
+    obBase*: PyVarObject
+    fBack*: PyFrameObjectPtr   # previous frame, or NULL
+    fCode*: PyCodeObject       # code segment
+    fBuiltins*: PyObjectPtr    # builtin symbol table (PyDictObject)
+    fGlobals*: PyObjectPtr     # global symbol table (PyDictObject)
+    fLocals*: PyObjectPtr      # local symbol table (any mapping)
+    fValuestack*: PyObjectPtrPtr   # points after the last local
+    fStacktop*: PyObjectPtrPtr     # points after the last local
+    fTrace*: PyObjectPtr   # Trace function
+    fExcType*, fExcValue*, fExcTraceback*: PyObjectPtr
+    fGen*: PyObjectPtr # Borrowed reference to a generator, or NULL
+    fLasti*: int   # Last instruction if called
+    fLineno*: int  # Current line number
+    fIblock*: int  # index in fBlockstack
+    fExecuting*: int8  # whether the frame is still executing
+    fBlockstack: array[0..coMaxBlocks-1, PyTryBlock]  # for try and loop blocks
+    fLocalsplus*: UncheckedArray[PyObjectPtr]
     
 var
   # Library handle used by the hooks, defined below
@@ -350,257 +358,257 @@ var
 
   ## Hooks (need to be loaded from the dynamic library)
   # Hook 'PyOS_InputHook' C specification: 'int func(void)'
-  PyOS_InputHook* = cast[ptr proc(): int{.cdecl.}](dynlib.symAddr(libraryHandle, "PyOS_InputHook"))
+  osInputHook* = cast[ptr proc(): int{.cdecl.}](dynlib.symAddr(libraryHandle, "PyOS_InputHook"))
   # Hook 'PyOS_InputHook' C specification: 'char *func(FILE *stdin, FILE *stdout, char *prompt)'
-  PyOS_ReadlineFunctionPointer* = cast[ptr proc(): int{.cdecl.}](dynlib.symAddr(libraryHandle, "PyOS_ReadlineFunctionPointer"))
+  osReadlineFunctionPointer* = cast[ptr proc(): int{.cdecl.}](dynlib.symAddr(libraryHandle, "PyOS_ReadlineFunctionPointer"))
   
   ## Standard exception base classes
-  PyExc_BaseException*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BaseException"))
-  PyExc_Exception*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_Exception"))
-  PyExc_StopIteration*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_StopIteration"))
-  PyExc_GeneratorExit*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_GeneratorExit"))
-  PyExc_ArithmeticError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ArithmeticError"))
-  PyExc_LookupError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_LookupError"))
-  PyExc_AssertionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_AssertionError"))
-  PyExc_AttributeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_AttributeError"))
-  PyExc_BufferError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BufferError"))
-  PyExc_EOFError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_EOFError"))
-  PyExc_FloatingPointError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_FloatingPointError"))
-  PyExc_OSError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_OSError"))
-  PyExc_ImportError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ImportError"))
-  PyExc_IndexError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_IndexError"))
-  PyExc_KeyError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_KeyError"))
-  PyExc_KeyboardInterrupt*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_KeyboardInterrupt"))
-  PyExc_MemoryError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_MemoryError"))
-  PyExc_NameError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_NameError"))
-  PyExc_OverflowError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_OverflowError"))
-  PyExc_RuntimeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_RuntimeError"))
-  PyExc_NotImplementedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_NotImplementedError"))
-  PyExc_SyntaxError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_SyntaxError"))
-  PyExc_IndentationError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_IndentationError"))
-  PyExc_TabError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_TabError"))
-  PyExc_ReferenceError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ReferenceError"))
-  PyExc_SystemError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_SystemError"))
-  PyExc_SystemExit*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_SystemExit"))
-  PyExc_TypeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_TypeError"))
-  PyExc_UnboundLocalError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnboundLocalError"))
-  PyExc_UnicodeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeError"))
-  PyExc_UnicodeEncodeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeEncodeError"))
-  PyExc_UnicodeDecodeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeDecodeError"))
-  PyExc_UnicodeTranslateError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeTranslateError"))
-  PyExc_ValueError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ValueError"))
-  PyExc_ZeroDivisionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ZeroDivisionError"))
+  excBaseException*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BaseException"))
+  excException*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_Exception"))
+  excStopIteration*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_StopIteration"))
+  excGeneratorExit*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_GeneratorExit"))
+  excArithmeticError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ArithmeticError"))
+  excLookupError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_LookupError"))
+  excAssertionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_AssertionError"))
+  excAttributeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_AttributeError"))
+  excBufferError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BufferError"))
+  excEOFError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_EOFError"))
+  excFloatingPointError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_FloatingPointError"))
+  excOSError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_OSError"))
+  excImportError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ImportError"))
+  excIndexError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_IndexError"))
+  excKeyError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_KeyError"))
+  excKeyboardInterrupt*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_KeyboardInterrupt"))
+  excMemoryError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_MemoryError"))
+  excNameError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_NameError"))
+  excOverflowError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_OverflowError"))
+  excRuntimeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_RuntimeError"))
+  excNotImplementedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_NotImplementedError"))
+  excSyntaxError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_SyntaxError"))
+  excIndentationError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_IndentationError"))
+  excTabError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_TabError"))
+  excReferenceError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ReferenceError"))
+  excSystemError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_SystemError"))
+  excSystemExit*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_SystemExit"))
+  excTypeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_TypeError"))
+  excUnboundLocalError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnboundLocalError"))
+  excUnicodeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeError"))
+  excUnicodeEncodeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeEncodeError"))
+  excUnicodeDecodeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeDecodeError"))
+  excUnicodeTranslateError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_UnicodeTranslateError"))
+  excValueError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ValueError"))
+  excZeroDivisionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ZeroDivisionError"))
   # Exceptions available only in Python 3.3 and higher
-  PyExc_BlockingIOError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BlockingIOError"))
-  PyExc_BrokenPipeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BrokenPipeError"))
-  PyExc_ChildProcessError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ChildProcessError"))
-  PyExc_ConnectionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionError"))
-  PyExc_ConnectionAbortedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionAbortedError"))
-  PyExc_ConnectionRefusedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionRefusedError"))
-  PyExc_ConnectionResetError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionResetError"))
-  PyExc_FileExistsError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_FileExistsError"))
-  PyExc_FileNotFoundError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_FileNotFoundError"))
-  PyExc_InterruptedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_InterruptedError"))
-  PyExc_IsADirectoryError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_IsADirectoryError"))
-  PyExc_NotADirectoryError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_NotADirectoryError"))
-  PyExc_PermissionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_PermissionError"))
-  PyExc_ProcessLookupError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ProcessLookupError"))
-  PyExc_TimeoutError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_TimeoutError"))
+  excBlockingIOError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BlockingIOError"))
+  excBrokenPipeError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_BrokenPipeError"))
+  excChildProcessError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ChildProcessError"))
+  excConnectionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionError"))
+  excConnectionAbortedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionAbortedError"))
+  excConnectionRefusedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionRefusedError"))
+  excConnectionResetError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ConnectionResetError"))
+  excFileExistsError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_FileExistsError"))
+  excFileNotFoundError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_FileNotFoundError"))
+  excInterruptedError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_InterruptedError"))
+  excIsADirectoryError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_IsADirectoryError"))
+  excNotADirectoryError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_NotADirectoryError"))
+  excPermissionError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_PermissionError"))
+  excProcessLookupError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_ProcessLookupError"))
+  excTimeoutError*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "PyExc_TimeoutError"))
 
 
 ## Python C functions that can be used 'As is' from Nim
 # Initializing and finalizing the interpreter
-proc Py_Initialize*(){.cdecl, importc, dynlib: libraryString.}
-proc Py_Finalize*(){.cdecl, importc, dynlib: libraryString.}
+proc initialize*(){.cdecl, importc: "Py_Initialize" dynlib: libraryString.}
+proc finalize*(){.cdecl, importc: "Py_Finalize" dynlib: libraryString.}
 # Run the interpreter independantly of the Nim application
-proc Py_Main*(argc: int, argv: WideCStringPtr): int{.cdecl, importc, dynlib: libraryString.}
+proc main*(argc: int, argv: WideCStringPtr): int{.cdecl, importc: "Py_Main" dynlib: libraryString.}
 # Execute a script from a string
-proc PyRun_SimpleString*(command: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_SimpleStringFlags*(command: cstring, flags: PyCompilerFlagsPtr): int{.cdecl, importc, dynlib: libraryString.}
+proc runSimpleString*(command: cstring): int{.cdecl, importc: "PyRun_SimpleString" dynlib: libraryString.}
+proc runSimpleStringFlags*(command: cstring, flags: PyCompilerFlagsPtr): int{.cdecl, importc: "PyRun_SimpleStringFlags" dynlib: libraryString.}
 # Advanced string execution
-proc PyRun_String*(str: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_StringFlags*(str: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, flags: PyCompilerFlags): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc runString*(str: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyRun_String" dynlib: libraryString.}
+proc runStringFlags*(str: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, flags: PyCompilerFlags): PyObjectPtr{.cdecl, importc: "PyRun_StringFlags" dynlib: libraryString.}
 # Parsing python source code and returning a node object
-proc PyParser_SimpleParseString*(str: cstring, start: int): PyNodePtr{.cdecl, importc, dynlib: libraryString.}
-proc PyParser_SimpleParseStringFlags*(str: cstring, start: int, flags: int): PyNodePtr{.cdecl, importc, dynlib: libraryString.}
-proc PyParser_SimpleParseStringFlagsFilename*(str: cstring, filename: cstring, start: int, flags: int): PyNodePtr{.cdecl, importc, dynlib: libraryString.}
+proc parserSimpleParseString*(str: cstring, start: int): PyNodePtr{.cdecl, importc: "PyParser_SimpleParseString" dynlib: libraryString.}
+proc parserSimpleParseStringFlags*(str: cstring, start: int, flags: int): PyNodePtr{.cdecl, importc: "PyParser_SimpleParseStringFlags" dynlib: libraryString.}
+proc parserSimpleParseStringFlagsFilename*(str: cstring, filename: cstring, start: int, flags: int): PyNodePtr{.cdecl, importc: "PyParser_SimpleParseStringFlagsFilename" dynlib: libraryString.}
 # Parse and compile the Python source code in str, returning the resulting code object
-proc Py_CompileString*(str: cstring, filename: cstring, start: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc Py_CompileStringFlags*(str: cstring, filename: cstring, start: int, flags: PyCompilerFlagsPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc Py_CompileStringExFlags*(str: cstring, filename: cstring, start: int, flags: PyCompilerFlagsPtr, optimize: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc Py_CompileStringObject*(str: cstring, filename: PyObjectPtr, start: int, flags: PyCompilerFlagsPtr, optimize: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc compileString*(str: cstring, filename: cstring, start: int): PyObjectPtr{.cdecl, importc: "Py_CompileString" dynlib: libraryString.}
+proc compileStringFlags*(str: cstring, filename: cstring, start: int, flags: PyCompilerFlagsPtr): PyObjectPtr{.cdecl, importc: "Py_CompileStringFlags" dynlib: libraryString.}
+proc compileStringExFlags*(str: cstring, filename: cstring, start: int, flags: PyCompilerFlagsPtr, optimize: int): PyObjectPtr{.cdecl, importc: "Py_CompileStringExFlags" dynlib: libraryString.}
+proc compileStringObject*(str: cstring, filename: PyObjectPtr, start: int, flags: PyCompilerFlagsPtr, optimize: int): PyObjectPtr{.cdecl, importc: "Py_CompileStringObject" dynlib: libraryString.}
 # Evaluate a precompiled code object, given a particular environment for its evaluation
-proc PyEval_EvalCode*(ob: PyObjectPtr, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyEval_EvalCodeEx*(ob: PyObjectPtr, globals: PyObjectPtr, locals: PyObjectPtr, args: PyObjectPtrPtr, argcount: int, kws: PyObjectPtrPtr, kwcount: int, defs: PyObjectPtrPtr, defcount: int, closure: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc evalEvalCode*(ob: PyObjectPtr, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyEval_EvalCode" dynlib: libraryString.}
+proc evalEvalCodeEx*(ob: PyObjectPtr, globals: PyObjectPtr, locals: PyObjectPtr, args: PyObjectPtrPtr, argcount: int, kws: PyObjectPtrPtr, kwcount: int, defs: PyObjectPtrPtr, defcount: int, closure: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyEval_EvalCodeEx" dynlib: libraryString.}
 # Evaluate an execution frame
-proc PyEval_EvalFrame*(f: PyFrameObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc evalEvalFrame*(f: PyFrameObjectPtr): PyObjectPtr{.cdecl, importc: "PyEval_EvalFrame" dynlib: libraryString.}
 # This is the main, unvarnished function of Python interpretation
-proc PyEval_EvalFrameEx*(f: PyFrameObjectPtr, throwflag: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc evalEvalFrameEx*(f: PyFrameObjectPtr, throwflag: int): PyObjectPtr{.cdecl, importc: "PyEval_EvalFrameEx" dynlib: libraryString.}
 # This function changes the flags of the current evaluation frame, 
 # and returns true on success, false on failure
-proc PyEval_MergeCompilerFlags*(cf: PyCompilerFlagsPtr): int{.cdecl, importc, dynlib: libraryString.}
+proc evalMergeCompilerFlags*(cf: PyCompilerFlagsPtr): int{.cdecl, importc: "PyEval_MergeCompilerFlags" dynlib: libraryString.}
 # Reference Counting, C macros converted to Nim templates
-template Py_INCREF*(ob: PyObjectPtr) = 
+template incref*(ob: PyObjectPtr) = 
   inc(ob.ob_refcnt)
 
-template Py_XINCREF*(ob: PyObjectPtr) =
+template xincref*(ob: PyObjectPtr) =
   if ob != nil:
-    Py_INCREF(ob)
+    incref(ob)
 
-template Py_DECREF*(ob: PyObjectPtr) =
-  dec(ob.ob_refcnt)
-  if ob.ob_refcnt == 0:
-    ob.ob_type.tp_dealloc(ob)
+template decref*(ob: PyObjectPtr) =
+  dec(ob.obRefcnt)
+  if ob.obRefcnt == 0:
+    ob.obType.tpDealloc(ob)
 
-template Py_XDECREF*(ob: PyObjectPtr) = 
+template xDecref*(ob: PyObjectPtr) = 
   if ob != nil:
-    Py_DECREF(ob)
+    decref(ob)
 
-template Py_CLEAR*(ob: PyObjectPtr) =
+template clear*(ob: PyObjectPtr) =
   var
     tempOb: PyObjectPtr = ob
   if tempOb != nil:
     ob = nil
-    Py_DECREF(tempOb)
+    decref(tempOb)
 # Exception Handling
-proc PyErr_PrintEx*(set_sys_last_vars: int){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_Print*(){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_Occurred*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyErr_ExceptionMatches*(exc: PyObjectPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_GivenExceptionMatches*(given: PyObjectPtr, exc: PyObjectPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_NormalizeException*(exc: PyObjectPtrPtr, val: PyObjectPtrPtr, tb: PyObjectPtrPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_Clear*(){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_Fetch*(ptype: PyObjectPtrPtr, pvalue: PyObjectPtrPtr, ptraceback: PyObjectPtrPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_Restore*(typ: PyObjectPtr, value: PyObjectPtr, traceback: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_GetExcInfo*(ptype: PyObjectPtrPtr, pvalue: PyObjectPtrPtr, ptraceback: PyObjectPtrPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetExcInfo*(typ: PyObjectPtr, value: PyObjectPtr, traceback: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetString*(typ: PyObjectPtr, message: cstring){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetObject*(typ: PyObjectPtr, value: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_Format*(exception: PyObjectPtr, format: cstring): PyObjectPtr{.cdecl, importc, varargs, dynlib: libraryString, discardable.}
-proc PyErr_SetNone*(typ: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_BadArgument*(): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_NoMemory*(): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetFromErrno*(typ: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetFromErrnoWithFilenameObject*(typ: PyObjectPtr, filenameObject: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetFromErrnoWithFilenameObjects*(typ: PyObjectPtr, filenameObject: PyObjectPtr, filenameObject2: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetFromErrnoWithFilename*(typ: PyObjectPtr, filename: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetFromWindowsErr*(ierr: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetExcFromWindowsErr*(typ: PyObjectPtr, ierr: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetFromWindowsErrWithFilename*(ierr: int, filename: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetExcFromWindowsErrWithFilenameObject*(typ: PyObjectPtr, ierr: int, filename: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetExcFromWindowsErrWithFilenameObjects*(typ: PyObjectPtr, ierr: int, filename: PyObjectPtr, filename2: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetExcFromWindowsErrWithFilename*(typ: PyObjectPtr, ierr: int, filename: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetImportError*(msg: PyObjectPtr, name: PyObjectPtr, path: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SyntaxLocationObject*(filename: PyObjectPtr, lineno: int, col_offset: int){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SyntaxLocationEx*(filename: cstring, lineno: int, col_offset: int){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SyntaxLocation*(filename: cstring, lineno: int){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_BadInternalCall*(){.cdecl, importc, dynlib: libraryString.}
-proc PyErr_WarnEx*(category: PyObjectPtr, message: cstring, stack_level: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_WarnExplicitObject*(category: PyObjectPtr, message: PyObjectPtr, filename: PyObjectPtr, lineno: int, module: PyObjectPtr, registry: PyObjectPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_WarnExplicit*(category: PyObjectPtr, message: cstring, filename: cstring, lineno: int, module: cstring, registry: PyObjectPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_WarnFormat*(category: PyObjectPtr, stack_level: PySizeT, format: cstring): int{.cdecl, importc, varargs, dynlib: libraryString.}
-proc PyErr_CheckSignals*(): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_SetInterrupt*(){.cdecl, importc, dynlib: libraryString.}
-proc PySignal_SetWakeupFd*(fd: int): int{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_NewException*(name: cstring, base: PyObjectPtr, dict: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_NewExceptionWithDoc*(name: cstring, doc: cstring, base: PyObjectPtr, dict: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyErr_WriteUnraisable*(obj: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyException_GetTraceback*(ex: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyException_SetTraceback*(ex: PyObjectPtr, tb: PyObjectPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyException_GetContext*(ex: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyException_SetContext*(ex: PyObjectPtr, ctx: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyException_GetCause*(ex: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyException_SetCause*(ex: PyObjectPtr, cause: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_Create*(encoding: cstring, obj: cstring, length: PySizeT, start: PySizeT, ending: PySizeT, reason: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_Create*(encoding: cstring, obj: PyUnicodePtr, length: PySizeT, start: PySizeT, ending: PySizeT, reason: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_Create*(obj: PyUnicodePtr, length: PySizeT, start: PySizeT, ending: PySizeT, reason: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_GetEncoding*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_GetEncoding*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_GetObject*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_GetObject*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_GetObject*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_GetStart*(exc: PyObjectPtr, start: PySizeTPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_GetStart*(exc: PyObjectPtr, start: PySizeTPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_GetStart*(exc: PyObjectPtr, start: PySizeTPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_SetStart*(exc: PyObjectPtr, start: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_SetStart*(exc: PyObjectPtr, start: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_SetStart*(exc: PyObjectPtr, start: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_GetEnd*(exc: PyObjectPtr, ending: PySizeTPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_GetEnd*(exc: PyObjectPtr, ending: PySizeTPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_GetEnd*(exc: PyObjectPtr, ending: PySizeTPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_SetEnd*(exc: PyObjectPtr, ending: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_SetEnd*(exc: PyObjectPtr, ending: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_SetEnd*(exc: PyObjectPtr, ending: PySizeT): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_GetReason*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_GetReason*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_GetReason*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeDecodeError_SetReason*(exc: PyObjectPtr, reason: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeEncodeError_SetReason*(exc: PyObjectPtr, reason: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyUnicodeTranslateError_SetReason*(exc: PyObjectPtr, reason: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc Py_EnterRecursiveCall*(where: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc Py_LeaveRecursiveCall*(){.cdecl, importc, dynlib: libraryString.}
-proc Py_ReprEnter*(obj: PyObjectPtr): int{.cdecl, importc, dynlib: libraryString.}
-proc Py_ReprLeave*(obj: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
+proc errPrintEx*(set_sys_last_vars: int){.cdecl, importc: "PyErr_PrintEx" dynlib: libraryString.}
+proc errPrint*(){.cdecl, importc: "PyErr_Print" dynlib: libraryString.}
+proc errOccurred*(): PyObjectPtr {.cdecl, importc: "PyErr_Occurred" dynlib: libraryString.}
+proc errExceptionMatches*(exc: PyObjectPtr): int{.cdecl, importc: "PyErr_ExceptionMatches" dynlib: libraryString.}
+proc errGivenExceptionMatches*(given: PyObjectPtr, exc: PyObjectPtr): int{.cdecl, importc: "PyErr_GivenExceptionMatches" dynlib: libraryString.}
+proc errNormalizeException*(exc: PyObjectPtrPtr, val: PyObjectPtrPtr, tb: PyObjectPtrPtr){.cdecl, importc: "PyErr_NormalizeException" dynlib: libraryString.}
+proc errClear*(){.cdecl, importc: "PyErr_Clear" dynlib: libraryString.}
+proc errFetch*(ptype: PyObjectPtrPtr, pvalue: PyObjectPtrPtr, ptraceback: PyObjectPtrPtr){.cdecl, importc: "PyErr_Fetch" dynlib: libraryString.}
+proc errRestore*(typ: PyObjectPtr, value: PyObjectPtr, traceback: PyObjectPtr){.cdecl, importc: "PyErr_Restore" dynlib: libraryString.}
+proc errGetExcInfo*(ptype: PyObjectPtrPtr, pvalue: PyObjectPtrPtr, ptraceback: PyObjectPtrPtr){.cdecl, importc: "PyErr_GetExcInfo" dynlib: libraryString.}
+proc errSetExcInfo*(typ: PyObjectPtr, value: PyObjectPtr, traceback: PyObjectPtr){.cdecl, importc: "PyErr_SetExcInfo" dynlib: libraryString.}
+proc errSetString*(typ: PyObjectPtr, message: cstring){.cdecl, importc: "PyErr_SetString" dynlib: libraryString.}
+proc errSetObject*(typ: PyObjectPtr, value: PyObjectPtr){.cdecl, importc: "PyErr_SetObject" dynlib: libraryString.}
+proc errFormat*(exception: PyObjectPtr, format: cstring): PyObjectPtr{.cdecl, importc: "PyErr_Format" varargs, dynlib: libraryString, discardable.}
+proc errSetNone*(typ: PyObjectPtr){.cdecl, importc: "PyErr_SetNone" dynlib: libraryString.}
+proc errBadArgument*(): int{.cdecl, importc: "PyErr_BadArgument" dynlib: libraryString.}
+proc errNoMemory*(): PyObjectPtr{.cdecl, importc: "PyErr_NoMemory" dynlib: libraryString.}
+proc errSetFromErrno*(typ: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_SetFromErrno" dynlib: libraryString.}
+proc errSetFromErrnoWithFilenameObject*(typ: PyObjectPtr, filenameObject: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_SetFromErrnoWithFilenameObject" dynlib: libraryString.}
+proc errSetFromErrnoWithFilenameObjects*(typ: PyObjectPtr, filenameObject: PyObjectPtr, filenameObject2: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_SetFromErrnoWithFilenameObjects" dynlib: libraryString.}
+proc errSetFromErrnoWithFilename*(typ: PyObjectPtr, filename: cstring): PyObjectPtr{.cdecl, importc: "PyErr_SetFromErrnoWithFilename" dynlib: libraryString.}
+proc errSetFromWindowsErr*(ierr: int): PyObjectPtr{.cdecl, importc: "PyErr_SetFromWindowsErr" dynlib: libraryString.}
+proc errSetExcFromWindowsErr*(typ: PyObjectPtr, ierr: int): PyObjectPtr{.cdecl, importc: "PyErr_SetExcFromWindowsErr" dynlib: libraryString.}
+proc errSetFromWindowsErrWithFilename*(ierr: int, filename: cstring): PyObjectPtr{.cdecl, importc: "PyErr_SetFromWindowsErrWithFilename" dynlib: libraryString.}
+proc errSetExcFromWindowsErrWithFilenameObject*(typ: PyObjectPtr, ierr: int, filename: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_SetExcFromWindowsErrWithFilenameObject" dynlib: libraryString.}
+proc errSetExcFromWindowsErrWithFilenameObjects*(typ: PyObjectPtr, ierr: int, filename: PyObjectPtr, filename2: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_SetExcFromWindowsErrWithFilenameObjects" dynlib: libraryString.}
+proc errSetExcFromWindowsErrWithFilename*(typ: PyObjectPtr, ierr: int, filename: cstring): PyObjectPtr{.cdecl, importc: "PyErr_SetExcFromWindowsErrWithFilename" dynlib: libraryString.}
+proc errSetImportError*(msg: PyObjectPtr, name: PyObjectPtr, path: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_SetImportError" dynlib: libraryString.}
+proc errSyntaxLocationObject*(filename: PyObjectPtr, lineno: int, col_offset: int){.cdecl, importc: "PyErr_SyntaxLocationObject" dynlib: libraryString.}
+proc errSyntaxLocationEx*(filename: cstring, lineno: int, col_offset: int){.cdecl, importc: "PyErr_SyntaxLocationEx" dynlib: libraryString.}
+proc errSyntaxLocation*(filename: cstring, lineno: int){.cdecl, importc: "PyErr_SyntaxLocation" dynlib: libraryString.}
+proc errBadInternalCall*(){.cdecl, importc: "PyErr_BadInternalCall" dynlib: libraryString.}
+proc errWarnEx*(category: PyObjectPtr, message: cstring, stack_level: PySizeT): int{.cdecl, importc: "PyErr_WarnEx" dynlib: libraryString.}
+proc errWarnExplicitObject*(category: PyObjectPtr, message: PyObjectPtr, filename: PyObjectPtr, lineno: int, module: PyObjectPtr, registry: PyObjectPtr): int{.cdecl, importc: "PyErr_WarnExplicitObject" dynlib: libraryString.}
+proc errWarnExplicit*(category: PyObjectPtr, message: cstring, filename: cstring, lineno: int, module: cstring, registry: PyObjectPtr): int{.cdecl, importc: "PyErr_WarnExplicit" dynlib: libraryString.}
+proc errWarnFormat*(category: PyObjectPtr, stack_level: PySizeT, format: cstring): int{.cdecl, importc: "PyErr_WarnFormat" varargs, dynlib: libraryString.}
+proc errCheckSignals*(): int{.cdecl, importc: "PyErr_CheckSignals" dynlib: libraryString.}
+proc errSetInterrupt*(){.cdecl, importc: "PyErr_SetInterrupt" dynlib: libraryString.}
+proc signalSetWakeupFd*(fd: int): int{.cdecl, importc: "PySignal_SetWakeupFd" dynlib: libraryString.}
+proc errNewException*(name: cstring, base: PyObjectPtr, dict: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_NewException" dynlib: libraryString.}
+proc errNewExceptionWithDoc*(name: cstring, doc: cstring, base: PyObjectPtr, dict: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyErr_NewExceptionWithDoc" dynlib: libraryString.}
+proc errWriteUnraisable*(obj: PyObjectPtr){.cdecl, importc: "PyErr_WriteUnraisable" dynlib: libraryString.}
+proc exceptionGetTraceback*(ex: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyException_GetTraceback" dynlib: libraryString.}
+proc exceptionSetTraceback*(ex: PyObjectPtr, tb: PyObjectPtr): int{.cdecl, importc: "PyException_SetTraceback" dynlib: libraryString.}
+proc exceptionGetContext*(ex: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyException_GetContext" dynlib: libraryString.}
+proc exceptionSetContext*(ex: PyObjectPtr, ctx: PyObjectPtr){.cdecl, importc: "PyException_SetContext" dynlib: libraryString.}
+proc exceptionGetCause*(ex: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyException_GetCause" dynlib: libraryString.}
+proc exceptionSetCause*(ex: PyObjectPtr, cause: PyObjectPtr){.cdecl, importc: "PyException_SetCause" dynlib: libraryString.}
+proc unicodeDecodeErrorCreate*(encoding: cstring, obj: cstring, length: PySizeT, start: PySizeT, ending: PySizeT, reason: cstring): PyObjectPtr{.cdecl, importc: "PyUnicodeDecodeError_Create" dynlib: libraryString.}
+proc unicodeEncodeErrorCreate*(encoding: cstring, obj: PyUnicodePtr, length: PySizeT, start: PySizeT, ending: PySizeT, reason: cstring): PyObjectPtr{.cdecl, importc: "PyUnicodeEncodeError_Create" dynlib: libraryString.}
+proc unicodeTranslateErrorCreate*(obj: PyUnicodePtr, length: PySizeT, start: PySizeT, ending: PySizeT, reason: cstring): PyObjectPtr{.cdecl, importc: "PyUnicodeTranslateError_Create" dynlib: libraryString.}
+proc unicodeDecodeErrorGetEncoding*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeDecodeError_GetEncoding" dynlib: libraryString.}
+proc unicodeEncodeErrorGetEncoding*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeEncodeError_GetEncoding" dynlib: libraryString.}
+proc unicodeDecodeErrorGetObject*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeDecodeError_GetObject" dynlib: libraryString.}
+proc unicodeEncodeErrorGetObject*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeEncodeError_GetObject" dynlib: libraryString.}
+proc unicodeTranslateErrorGetObject*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeTranslateError_GetObject" dynlib: libraryString.}
+proc unicodeDecodeErrorGetStart*(exc: PyObjectPtr, start: PySizeTPtr): int{.cdecl, importc: "PyUnicodeDecodeError_GetStart" dynlib: libraryString.}
+proc unicodeEncodeErrorGetStart*(exc: PyObjectPtr, start: PySizeTPtr): int{.cdecl, importc: "PyUnicodeEncodeError_GetStart" dynlib: libraryString.}
+proc unicodeTranslateErrorGetStart*(exc: PyObjectPtr, start: PySizeTPtr): int{.cdecl, importc: "PyUnicodeTranslateError_GetStart" dynlib: libraryString.}
+proc unicodeDecodeErrorSetStart*(exc: PyObjectPtr, start: PySizeT): int{.cdecl, importc: "PyUnicodeDecodeError_SetStart" dynlib: libraryString.}
+proc unicodeEncodeErrorSetStart*(exc: PyObjectPtr, start: PySizeT): int{.cdecl, importc: "PyUnicodeEncodeError_SetStart" dynlib: libraryString.}
+proc unicodeTranslateErrorSetStart*(exc: PyObjectPtr, start: PySizeT): int{.cdecl, importc: "PyUnicodeTranslateError_SetStart" dynlib: libraryString.}
+proc unicodeDecodeErrorGetEnd*(exc: PyObjectPtr, ending: PySizeTPtr): int{.cdecl, importc: "PyUnicodeDecodeError_GetEnd" dynlib: libraryString.}
+proc unicodeEncodeErrorGetEnd*(exc: PyObjectPtr, ending: PySizeTPtr): int{.cdecl, importc: "PyUnicodeEncodeError_GetEnd" dynlib: libraryString.}
+proc unicodeTranslateErrorGetEnd*(exc: PyObjectPtr, ending: PySizeTPtr): int{.cdecl, importc: "PyUnicodeTranslateError_GetEnd" dynlib: libraryString.}
+proc unicodeDecodeErrorSetEnd*(exc: PyObjectPtr, ending: PySizeT): int{.cdecl, importc: "PyUnicodeDecodeError_SetEnd" dynlib: libraryString.}
+proc unicodeEncodeErrorSetEnd*(exc: PyObjectPtr, ending: PySizeT): int{.cdecl, importc: "PyUnicodeEncodeError_SetEnd" dynlib: libraryString.}
+proc unicodeTranslateErrorSetEnd*(exc: PyObjectPtr, ending: PySizeT): int{.cdecl, importc: "PyUnicodeTranslateError_SetEnd" dynlib: libraryString.}
+proc unicodeDecodeErrorGetReason*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeDecodeError_GetReason" dynlib: libraryString.}
+proc unicodeEncodeErrorGetReason*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeEncodeError_GetReason" dynlib: libraryString.}
+proc unicodeTranslateErrorGetReason*(exc: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyUnicodeTranslateError_GetReason" dynlib: libraryString.}
+proc unicodeDecodeErrorSetReason*(exc: PyObjectPtr, reason: cstring): int{.cdecl, importc: "PyUnicodeDecodeError_SetReason" dynlib: libraryString.}
+proc unicodeEncodeErrorSetReason*(exc: PyObjectPtr, reason: cstring): int{.cdecl, importc: "PyUnicodeEncodeError_SetReason" dynlib: libraryString.}
+proc unicodeTranslateErrorSetReason*(exc: PyObjectPtr, reason: cstring): int{.cdecl, importc: "PyUnicodeTranslateError_SetReason" dynlib: libraryString.}
+proc enterRecursiveCall*(where: cstring): int{.cdecl, importc: "Py_EnterRecursiveCall" dynlib: libraryString.}
+proc leaveRecursiveCall*(){.cdecl, importc: "Py_LeaveRecursiveCall" dynlib: libraryString.}
+proc reprEnter*(obj: PyObjectPtr): int{.cdecl, importc: "Py_ReprEnter" dynlib: libraryString.}
+proc reprLeave*(obj: PyObjectPtr){.cdecl, importc: "Py_ReprLeave" dynlib: libraryString.}
 # Operating System Utilities
-proc PyOS_AfterFork*(){.cdecl, importc, dynlib: libraryString.}
-proc PyOS_CheckStack*(): cint{.cdecl, importc, dynlib: libraryString.}
-proc PyOS_getsig*(i: cint): PyOS_sighandler_t{.cdecl, importc, dynlib: libraryString.}
-proc PyOS_setsig*(i: cint, h: PyOS_sighandler_t): PyOS_sighandler_t{.cdecl, importc, dynlib: libraryString.}
+proc osAfterFork*(){.cdecl, importc: "PyOS_AfterFork" dynlib: libraryString.}
+proc osCheckStack*(): cint{.cdecl, importc: "PyOS_CheckStack" dynlib: libraryString.}
+proc osGetsig*(i: cint): PyosSighandler{.cdecl, importc: "PyOS_getsig" dynlib: libraryString.}
+proc osSetsig*(i: cint, h: PyosSighandler): PyosSighandler{.cdecl, importc: "PyOS_setsig" dynlib: libraryString.}
 # System Functions
-proc PySys_GetObject*(name: cstring): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PySys_SetObject*(name: cstring; v: PyObjectPtr): cint{.cdecl, importc, dynlib: libraryString.}
-proc PySys_ResetWarnOptions*(){.cdecl, importc, dynlib: libraryString.}
-proc PySys_AddWarnOption*(s: WideCStringPtr){.cdecl, importc, dynlib: libraryString.}
-proc PySys_AddWarnOptionUnicode*(unicode: PyObjectPtr){.cdecl, importc, dynlib: libraryString.}
-proc PySys_SetPath*(path: WideCStringPtr){.cdecl, importc, dynlib: libraryString.}
-proc PySys_WriteStdout*(format: cstring){.cdecl, importc, varargs, dynlib: libraryString.}
-proc PySys_WriteStderr*(format: cstring){.cdecl, importc, varargs, dynlib: libraryString.}
-proc PySys_FormatStdout*(format: cstring){.cdecl, importc, varargs, dynlib: libraryString.}
-proc PySys_FormatStderr*(format: cstring){.cdecl, importc, varargs, dynlib: libraryString.}
-proc PySys_AddXOption*(s: WideCStringPtr){.cdecl, importc, dynlib: libraryString.}
-proc PySys_GetXOptions*(): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc sysGetObject*(name: cstring): PyObjectPtr{.cdecl, importc: "PySys_GetObject" dynlib: libraryString.}
+proc sysSetObject*(name: cstring; v: PyObjectPtr): cint{.cdecl, importc: "PySys_SetObject" dynlib: libraryString.}
+proc sysResetWarnOptions*(){.cdecl, importc: "PySys_ResetWarnOptions" dynlib: libraryString.}
+proc sysAddWarnOption*(s: WideCStringPtr){.cdecl, importc: "PySys_AddWarnOption" dynlib: libraryString.}
+proc sysAddWarnOptionUnicode*(unicode: PyObjectPtr){.cdecl, importc: "PySys_AddWarnOptionUnicode" dynlib: libraryString.}
+proc sysSetPath*(path: WideCStringPtr){.cdecl, importc: "PySys_SetPath" dynlib: libraryString.}
+proc sysWriteStdout*(format: cstring){.cdecl, importc: "PySys_WriteStdout" varargs, dynlib: libraryString.}
+proc sysWriteStderr*(format: cstring){.cdecl, importc: "PySys_WriteStderr" varargs, dynlib: libraryString.}
+proc sysFormatStdout*(format: cstring){.cdecl, importc: "PySys_FormatStdout" varargs, dynlib: libraryString.}
+proc sysFormatStderr*(format: cstring){.cdecl, importc: "PySys_FormatStderr" varargs, dynlib: libraryString.}
+proc sysAddXOption*(s: WideCStringPtr){.cdecl, importc: "PySys_AddXOption" dynlib: libraryString.}
+proc sysGetXOptions*(): PyObjectPtr{.cdecl, importc: "PySys_GetXOptions" dynlib: libraryString.}
 # Process Control
-proc Py_FatalError*(message: cstring){.cdecl, importc, dynlib: libraryString.}
-proc Py_Exit*(status: cint){.cdecl, importc, dynlib: libraryString.}
-proc Py_AtExit*(fun: proc (){.cdecl}): cint{.cdecl, importc, dynlib: libraryString.}
+proc fatalError*(message: cstring){.cdecl, importc: "Py_FatalError" dynlib: libraryString.}
+proc exit*(status: cint){.cdecl, importc: "Py_Exit" dynlib: libraryString.}
+proc atExit*(fun: proc (){.cdecl}): cint{.cdecl, importc: "Py_AtExit" dynlib: libraryString.}
 
 
 ## Functions that are not portable across compilers (The 'File' type is different across compilers),
 ## each is usually followed by a Nim portable implementation of the same function
 # Execute a script from a file
-proc PyRun_AnyFile*(fp: File, filename: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_AnyFile*(filename: string): int =
-  result = PyRun_SimpleString(readFile(filename))
+proc runAnyFile*(fp: File, filename: cstring): int{.cdecl, importc: "PyRun_AnyFile" dynlib: libraryString.}
+proc runAnyFile*(filename: string): int =
+  result = runSimpleString(readFile(filename))
 # Execute a script from a file with flags
-proc PyRun_AnyFileFlags*(fp: File, filename: cstring, flags: PyCompilerFlags): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_AnyFileFlags*(filename: string, flags: PyCompilerFlagsPtr): int =
-  result = PyRun_SimpleStringFlags(readFile(filename), flags)
+proc runAnyFileFlags*(fp: File, filename: cstring, flags: PyCompilerFlags): int{.cdecl, importc: "PyRun_AnyFileFlags" dynlib: libraryString.}
+proc runAnyFileFlags*(filename: string, flags: PyCompilerFlagsPtr): int =
+  result = runSimpleStringFlags(readFile(filename), flags)
 # Executing a script from a file with additional options and a return value
-proc PyRun_File*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_File*(filename: string, start: int, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr =
+proc runFile*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr{.cdecl, importc: "PyRun_File" dynlib: libraryString.}
+proc runFile*(filename: string, start: int, globals: PyObjectPtr, locals: PyObjectPtr): PyObjectPtr =
   var fileContents = readFile(fileName)
-  result = PyRun_String(fileContents, pyFileInput, globals, locals)
-proc PyRun_FileFlags*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, flags: PyCompilerFlags): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_FileFlags*(filename: string, start: int, globals: PyObjectPtr, locals: PyObjectPtr, flags: PyCompilerFlags): PyObjectPtr =
+  result = runString(fileContents, pyFileInput, globals, locals)
+proc runFileFlags*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, flags: PyCompilerFlags): PyObjectPtr{.cdecl, importc: "PyRun_FileFlags" dynlib: libraryString.}
+proc runFileFlags*(filename: string, start: int, globals: PyObjectPtr, locals: PyObjectPtr, flags: PyCompilerFlags): PyObjectPtr =
   var fileContents = readFile(fileName)
-  result = PyRun_StringFlags(fileContents, pyFileInput, globals, locals, flags)
+  result = runStringFlags(fileContents, pyFileInput, globals, locals, flags)
 # These C functions do not need to be ported, the above procedures are enough
-proc PyRun_AnyFileEx*(fp: File, filename: cstring, closeit: int): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_AnyFileExFlags*(fp: File, filename: cstring, closeit: int, flags: PyCompilerFlags): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_SimpleFile*(fp: File, filename: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_SimpleFileEx*(fp: File, filename: cstring, closeit: int): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_SimpleFileExFlags*(fp: File, filename: cstring, closeit: int, flags: PyCompilerFlags): int{.cdecl, importc, dynlib: libraryString.}
-proc PyParser_SimpleParseFile*(fp: File, filename: cstring, start: int): PyNodePtr{.cdecl, importc, dynlib: libraryString.}
-proc PyParser_SimpleParseFileFlags*(fp: File, filename: cstring, start: int, flags: int): PyNodePtr{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_FileEx*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, closeit: int): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_FileExFlags*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, closeit: int, flags: PyCompilerFlags): PyObjectPtr{.cdecl, importc, dynlib: libraryString.}
+proc runAnyFileEx*(fp: File, filename: cstring, closeit: int): int{.cdecl, importc: "PyRun_AnyFileEx" dynlib: libraryString.}
+proc runAnyFileExFlags*(fp: File, filename: cstring, closeit: int, flags: PyCompilerFlags): int{.cdecl, importc: "PyRun_AnyFileExFlags" dynlib: libraryString.}
+proc runSimpleFile*(fp: File, filename: cstring): int{.cdecl, importc: "PyRun_SimpleFile" dynlib: libraryString.}
+proc runSimpleFileEx*(fp: File, filename: cstring, closeit: int): int{.cdecl, importc: "PyRun_SimpleFileEx" dynlib: libraryString.}
+proc runSimpleFileExFlags*(fp: File, filename: cstring, closeit: int, flags: PyCompilerFlags): int{.cdecl, importc: "PyRun_SimpleFileExFlags" dynlib: libraryString.}
+proc parserSimpleParseFile*(fp: File, filename: cstring, start: int): PyNodePtr{.cdecl, importc: "PyParser_SimpleParseFile" dynlib: libraryString.}
+proc parserSimpleParseFileFlags*(fp: File, filename: cstring, start: int, flags: int): PyNodePtr{.cdecl, importc: "PyParser_SimpleParseFileFlags" dynlib: libraryString.}
+proc runFileEx*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, closeit: int): PyObjectPtr{.cdecl, importc: "PyRun_FileEx" dynlib: libraryString.}
+proc runFileExFlags*(fp: File, filename: cstring, start: int, globals: PyObjectPtr, locals: PyObjectPtr, closeit: int, flags: PyCompilerFlags): PyObjectPtr{.cdecl, importc: "PyRun_FileExFlags" dynlib: libraryString.}
 # Functions for reading and executing code from a file associated with an interactive device. For now they will stay non-portable.
-proc PyRun_InteractiveOne*(fp: File, filename: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_InteractiveOneFlags*(fp: File, filename: cstring, flags: PyCompilerFlags): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_InteractiveLoop*(fp: File, filename: cstring): int{.cdecl, importc, dynlib: libraryString.}
-proc PyRun_InteractiveLoopFlags*(fp: File, filename: cstring, flags: PyCompilerFlags): int{.cdecl, importc, dynlib: libraryString.}
+proc runInteractiveOne*(fp: File, filename: cstring): int{.cdecl, importc: "PyRun_InteractiveOne" dynlib: libraryString.}
+proc runInteractiveOneFlags*(fp: File, filename: cstring, flags: PyCompilerFlags): int{.cdecl, importc: "PyRun_InteractiveOneFlags" dynlib: libraryString.}
+proc runInteractiveLoop*(fp: File, filename: cstring): int{.cdecl, importc: "PyRun_InteractiveLoop" dynlib: libraryString.}
+proc runInteractiveLoopFlags*(fp: File, filename: cstring, flags: PyCompilerFlags): int{.cdecl, importc: "PyRun_InteractiveLoopFlags" dynlib: libraryString.}
 # Non-portable operating system functions
-proc Py_FdIsInteractive*(fp: File; filename: cstring): cint{.cdecl, importc, dynlib: libraryString.}
+proc fdIsInteractive*(fp: File; filename: cstring): cint{.cdecl, importc: "Py_FdIsInteractive" dynlib: libraryString.}
 
 
 #Importing modules
@@ -615,223 +623,223 @@ type
     code*: ptr cuchar
     size*: cint
 
-var PyImport_FrozenModules*: FrozenPtr = cast[FrozenPtr](dynlib.symAddr(libraryHandle, "PyImport_FrozenModules"))
+var importFrozenModules*: FrozenPtr = cast[FrozenPtr](dynlib.symAddr(libraryHandle, "PyImport_FrozenModules"))
     
-proc PyImport_ImportModule*(name: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ImportModuleNoBlock*(name: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ImportModuleEx*(name: cstring; globals: PyObjectPtr; locals: PyObjectPtr; fromlist: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ImportModuleLevelObject*(name: PyObjectPtr; globals: PyObjectPtr; locals: PyObjectPtr; fromlist: PyObjectPtr; level: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ImportModuleLevel*(name: cstring; globals: PyObjectPtr; locals: PyObjectPtr; fromlist: PyObjectPtr; level: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_Import*(name: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ReloadModule*(m: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_AddModuleObject*(name: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_AddModule*(name: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ExecCodeModule*(name: cstring; co: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ExecCodeModuleEx*(name: cstring; co: PyObjectPtr; pathname: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ExecCodeModuleObject*(name: PyObjectPtr; co: PyObjectPtr; pathname: PyObjectPtr; cpathname: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ExecCodeModuleWithPathnames*(name: cstring; co: PyObjectPtr; pathname: cstring; cpathname: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_GetMagicNumber*(): clong {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_GetMagicTag*(): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_GetModuleDict*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_GetImporter*(path: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_Init*() {.cdecl, importc: "_PyImport_Init", dynlib: libraryString.}
-proc PyImport_Cleanup*() {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_Fini*() {.cdecl, importc: "_PyImport_Fini", dynlib: libraryString.}
-proc PyImport_FindExtension*(arg0: cstring; arg1: cstring): PyObjectPtr {.cdecl, importc: "_PyImport_FindExtension", dynlib: libraryString.}
-proc PyImport_ImportFrozenModuleObject*(name: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_ImportFrozenModule*(name: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyImport_AppendInittab*(name: cstring; initfunc: proc (): PyObjectPtr {.cdecl.}): cint {.cdecl, importc, dynlib: libraryString, discardable.}
-proc PyImport_ExtendInittab*(newtab: ptr InitTab): cint {.cdecl, importc, dynlib: libraryString.}
+proc importImportModule*(name: cstring): PyObjectPtr {.cdecl, importc: "PyImport_ImportModule" dynlib: libraryString.}
+proc importImportModuleNoBlock*(name: cstring): PyObjectPtr {.cdecl, importc: "PyImport_ImportModuleNoBlock" dynlib: libraryString.}
+proc importImportModuleEx*(name: cstring; globals: PyObjectPtr; locals: PyObjectPtr; fromlist: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_ImportModuleEx" dynlib: libraryString.}
+proc importImportModuleLevelObject*(name: PyObjectPtr; globals: PyObjectPtr; locals: PyObjectPtr; fromlist: PyObjectPtr; level: cint): PyObjectPtr {.cdecl, importc: "PyImport_ImportModuleLevelObject" dynlib: libraryString.}
+proc importImportModuleLevel*(name: cstring; globals: PyObjectPtr; locals: PyObjectPtr; fromlist: PyObjectPtr; level: cint): PyObjectPtr {.cdecl, importc: "PyImport_ImportModuleLevel" dynlib: libraryString.}
+proc importImport*(name: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_Import" dynlib: libraryString.}
+proc importReloadModule*(m: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_ReloadModule" dynlib: libraryString.}
+proc importAddModuleObject*(name: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_AddModuleObject" dynlib: libraryString.}
+proc importAddModule*(name: cstring): PyObjectPtr {.cdecl, importc: "PyImport_AddModule" dynlib: libraryString.}
+proc importExecCodeModule*(name: cstring; co: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_ExecCodeModule" dynlib: libraryString.}
+proc importExecCodeModuleEx*(name: cstring; co: PyObjectPtr; pathname: cstring): PyObjectPtr {.cdecl, importc: "PyImport_ExecCodeModuleEx" dynlib: libraryString.}
+proc importExecCodeModuleObject*(name: PyObjectPtr; co: PyObjectPtr; pathname: PyObjectPtr; cpathname: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_ExecCodeModuleObject" dynlib: libraryString.}
+proc importExecCodeModuleWithPathnames*(name: cstring; co: PyObjectPtr; pathname: cstring; cpathname: cstring): PyObjectPtr {.cdecl, importc: "PyImport_ExecCodeModuleWithPathnames" dynlib: libraryString.}
+proc importGetMagicNumber*(): clong {.cdecl, importc: "PyImport_GetMagicNumber" dynlib: libraryString.}
+proc importGetMagicTag*(): cstring {.cdecl, importc: "PyImport_GetMagicTag" dynlib: libraryString.}
+proc importGetModuleDict*(): PyObjectPtr {.cdecl, importc: "PyImport_GetModuleDict" dynlib: libraryString.}
+proc importGetImporter*(path: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyImport_GetImporter" dynlib: libraryString.}
+proc importInit*() {.cdecl, importc: "_importInit", dynlib: libraryString.}
+proc importCleanup*() {.cdecl, importc: "PyImport_Cleanup" dynlib: libraryString.}
+proc importFini*() {.cdecl, importc: "_importFini", dynlib: libraryString.}
+proc importFindExtension*(arg0: cstring; arg1: cstring): PyObjectPtr {.cdecl, importc: "_importFindExtension", dynlib: libraryString.}
+proc importImportFrozenModuleObject*(name: PyObjectPtr): cint {.cdecl, importc: "PyImport_ImportFrozenModuleObject" dynlib: libraryString.}
+proc importImportFrozenModule*(name: cstring): cint {.cdecl, importc: "PyImport_ImportFrozenModule" dynlib: libraryString.}
+proc importAppendInittab*(name: cstring; initfunc: proc (): PyObjectPtr {.cdecl.}): cint {.cdecl, importc: "PyImport_AppendInittab" dynlib: libraryString, discardable.}
+proc importExtendInittab*(newtab: ptr InitTab): cint {.cdecl, importc: "PyImport_ExtendInittab" dynlib: libraryString.}
 
 #Data marshalling support
-proc PyMarshal_WriteLongToFile*(value: clong; file: File; version: cint) {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_WriteObjectToFile*(value: PyObjectPtr; file: File; version: cint) {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_WriteObjectToString*(value: PyObjectPtr; version: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_ReadLongFromFile*(file: File): clong {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_ReadShortFromFile*(file: File): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_ReadObjectFromFile*(file: File): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_ReadLastObjectFromFile*(file: File): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMarshal_ReadObjectFromString*(string: cstring; len: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc marshalWriteLongToFile*(value: clong; file: File; version: cint) {.cdecl, importc: "PyMarshal_WriteLongToFile" dynlib: libraryString.}
+proc marshalWriteObjectToFile*(value: PyObjectPtr; file: File; version: cint) {.cdecl, importc: "PyMarshal_WriteObjectToFile" dynlib: libraryString.}
+proc marshalWriteObjectToString*(value: PyObjectPtr; version: cint): PyObjectPtr {.cdecl, importc: "PyMarshal_WriteObjectToString" dynlib: libraryString.}
+proc marshalReadLongFromFile*(file: File): clong {.cdecl, importc: "PyMarshal_ReadLongFromFile" dynlib: libraryString.}
+proc marshalReadShortFromFile*(file: File): cint {.cdecl, importc: "PyMarshal_ReadShortFromFile" dynlib: libraryString.}
+proc marshalReadObjectFromFile*(file: File): PyObjectPtr {.cdecl, importc: "PyMarshal_ReadObjectFromFile" dynlib: libraryString.}
+proc marshalReadLastObjectFromFile*(file: File): PyObjectPtr {.cdecl, importc: "PyMarshal_ReadLastObjectFromFile" dynlib: libraryString.}
+proc marshalReadObjectFromString*(string: cstring; len: PySizeT): PyObjectPtr {.cdecl, importc: "PyMarshal_ReadObjectFromString" dynlib: libraryString.}
 
 #Parsing arguments and building values
-proc PyArg_ParseTuple*(args: PyObjectPtr; format: cstring): cint {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyArg_VaParse*(args: PyObjectPtr; format: cstring; vargs: varargs): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyArg_ParseTupleAndKeywords*(args: PyObjectPtr; kw: PyObjectPtr; format: cstring; keywords: ptr cstring): cint {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyArg_VaParseTupleAndKeywords*(args: PyObjectPtr; kw: PyObjectPtr; format: cstring; keywords: ptr cstring; vargs: varargs): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyArg_ValidateKeywordArguments*(arg: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyArg_Parse*(args: PyObjectPtr; format: cstring): cint {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyArg_UnpackTuple*(args: PyObjectPtr; name: cstring; min: PySizeT; max: PySizeT): cint {.varargs, cdecl, importc, dynlib: libraryString.}
-proc Py_BuildValue*(format: cstring): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.}
-proc Py_VaBuildValue*(format: cstring; vargs: varargs): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc argParseTuple*(args: PyObjectPtr; format: cstring): cint {.varargs, cdecl, importc: "PyArg_ParseTuple" dynlib: libraryString.}
+proc argVaParse*(args: PyObjectPtr; format: cstring; vargs: varargs): cint {.cdecl, importc: "PyArg_VaParse" dynlib: libraryString.}
+proc argParseTupleAndKeywords*(args: PyObjectPtr; kw: PyObjectPtr; format: cstring; keywords: ptr cstring): cint {.varargs, cdecl, importc: "PyArg_ParseTupleAndKeywords" dynlib: libraryString.}
+proc argVaParseTupleAndKeywords*(args: PyObjectPtr; kw: PyObjectPtr; format: cstring; keywords: ptr cstring; vargs: varargs): cint {.cdecl, importc: "PyArg_VaParseTupleAndKeywords" dynlib: libraryString.}
+proc argValidateKeywordArguments*(arg: PyObjectPtr): cint {.cdecl, importc: "PyArg_ValidateKeywordArguments" dynlib: libraryString.}
+proc argParse*(args: PyObjectPtr; format: cstring): cint {.varargs, cdecl, importc: "PyArg_Parse" dynlib: libraryString.}
+proc argUnpackTuple*(args: PyObjectPtr; name: cstring; min: PySizeT; max: PySizeT): cint {.varargs, cdecl, importc: "PyArg_UnpackTuple" dynlib: libraryString.}
+proc buildValue*(format: cstring): PyObjectPtr {.varargs, cdecl, importc: "Py_BuildValue" dynlib: libraryString.}
+proc vaBuildValue*(format: cstring; vargs: varargs): PyObjectPtr {.cdecl, importc: "Py_VaBuildValue" dynlib: libraryString.}
 
 #String conversion and formatting
-proc PyOS_snprintf*(str: cstring; size: csize; format: cstring): cint {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyOS_vsnprintf*(str: cstring; size: csize; format: cstring; va: varargs): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyOS_string_to_double*(s: cstring; endptr: cstringArray; overflow_exception: PyObjectPtr): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyOS_double_to_string*(val: cdouble; format_code: char; precision: cint; flags: cint; ptype: ptr cint): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyOS_stricmp*(s1: cstring; s2: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyOS_strnicmp*(s1: cstring; s2: cstring; size: PySizeT): cint {.cdecl, importc, dynlib: libraryString.}
+proc osSnprintf*(str: cstring; size: csize; format: cstring): cint {.varargs, cdecl, importc: "PyOS_snprintf" dynlib: libraryString.}
+proc osVsnprintf*(str: cstring; size: csize; format: cstring; va: varargs): cint {.cdecl, importc: "PyOS_vsnprintf" dynlib: libraryString.}
+proc osStringToDouble*(s: cstring; endptr: cstringArray; overflow_exception: PyObjectPtr): cdouble {.cdecl, importc: "PyOS_string_to_double" dynlib: libraryString.}
+proc osDoubleToString*(val: cdouble; format_code: char; precision: cint; flags: cint; ptype: ptr cint): cstring {.cdecl, importc: "PyOS_double_to_string" dynlib: libraryString.}
+proc osStricmp*(s1: cstring; s2: cstring): cint {.cdecl, importc: "PyOS_stricmp" dynlib: libraryString.}
+proc osStrnicmp*(s1: cstring; s2: cstring; size: PySizeT): cint {.cdecl, importc: "PyOS_strnicmp" dynlib: libraryString.}
 
 #Reflection
-proc PyEval_GetBuiltins*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_GetLocals*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_GetGlobals*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_GetFrame*(): PyFrameObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFrame_GetLineNumber*(frame: PyFrameObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_GetFuncName*(fun: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_GetFuncDesc*(fun: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
+proc evalGetBuiltins*(): PyObjectPtr {.cdecl, importc: "PyEval_GetBuiltins" dynlib: libraryString.}
+proc evalGetLocals*(): PyObjectPtr {.cdecl, importc: "PyEval_GetLocals" dynlib: libraryString.}
+proc evalGetGlobals*(): PyObjectPtr {.cdecl, importc: "PyEval_GetGlobals" dynlib: libraryString.}
+proc evalGetFrame*(): PyFrameObjectPtr {.cdecl, importc: "PyEval_GetFrame" dynlib: libraryString.}
+proc frameGetLineNumber*(frame: PyFrameObjectPtr): cint {.cdecl, importc: "PyFrame_GetLineNumber" dynlib: libraryString.}
+proc evalGetFuncName*(fun: PyObjectPtr): cstring {.cdecl, importc: "PyEval_GetFuncName" dynlib: libraryString.}
+proc evalGetFuncDesc*(fun: PyObjectPtr): cstring {.cdecl, importc: "PyEval_GetFuncDesc" dynlib: libraryString.}
 
 #Codec registry and support functions
-proc PyCodec_Register*(search_function: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_KnownEncoding*(encoding: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_Encode*(`object`: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_Decode*(`object`: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_Encoder*(encoding: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_IncrementalEncoder*(encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_IncrementalDecoder*(encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_StreamReader*(encoding: cstring; stream: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_StreamWriter*(encoding: cstring; stream: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_RegisterError*(name: cstring; error: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_LookupError*(name: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_StrictErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_IgnoreErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_ReplaceErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_XMLCharRefReplaceErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCodec_BackslashReplaceErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc codecRegister*(search_function: PyObjectPtr): cint {.cdecl, importc: "PyCodec_Register" dynlib: libraryString.}
+proc codecKnownEncoding*(encoding: cstring): cint {.cdecl, importc: "PyCodec_KnownEncoding" dynlib: libraryString.}
+proc codecEncode*(`object`: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_Encode" dynlib: libraryString.}
+proc codecDecode*(`object`: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_Decode" dynlib: libraryString.}
+proc codecEncoder*(encoding: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_Encoder" dynlib: libraryString.}
+proc codecIncrementalEncoder*(encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_IncrementalEncoder" dynlib: libraryString.}
+proc codecIncrementalDecoder*(encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_IncrementalDecoder" dynlib: libraryString.}
+proc codecStreamReader*(encoding: cstring; stream: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_StreamReader" dynlib: libraryString.}
+proc codecStreamWriter*(encoding: cstring; stream: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_StreamWriter" dynlib: libraryString.}
+proc codecRegisterError*(name: cstring; error: PyObjectPtr): cint {.cdecl, importc: "PyCodec_RegisterError" dynlib: libraryString.}
+proc codecLookupError*(name: cstring): PyObjectPtr {.cdecl, importc: "PyCodec_LookupError" dynlib: libraryString.}
+proc codecStrictErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCodec_StrictErrors" dynlib: libraryString.}
+proc codecIgnoreErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCodec_IgnoreErrors" dynlib: libraryString.}
+proc codecReplaceErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCodec_ReplaceErrors" dynlib: libraryString.}
+proc codecXMLCharRefReplaceErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCodec_XMLCharRefReplaceErrors" dynlib: libraryString.}
+proc codecBackslashReplaceErrors*(exc: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCodec_BackslashReplaceErrors" dynlib: libraryString.}
 
 #Object Protocol
-var Py_NotImplemented*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "Py_NotImplemented"))
+var notImplemented*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "Py_NotImplemented"))
 
-proc PyObject_Print*(o: PyObjectPtr; fp: File; flags: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_HasAttr*(o: PyObjectPtr; attr_name: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_HasAttrString*(o: PyObjectPtr; attr_name: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GetAttr*(o: PyObjectPtr; attr_name: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GetAttrString*(o: PyObjectPtr; attr_name: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GenericGetAttr*(o: PyObjectPtr; name: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_SetAttr*(o: PyObjectPtr; attr_name: PyObjectPtr; v: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_SetAttrString*(o: PyObjectPtr; attr_name: cstring; v: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GenericSetAttr*(o: PyObjectPtr; name: PyObjectPtr; value: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_DelAttr*(o: PyObjectPtr; attr_name: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_DelAttrString*(o: PyObjectPtr; attr_name: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GenericGetDict*(o: PyObjectPtr; context: pointer): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GenericSetDict*(o: PyObjectPtr; context: pointer): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_RichCompare*(o1: PyObjectPtr; o2: PyObjectPtr; opid: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_RichCompareBool*(o1: PyObjectPtr; o2: PyObjectPtr; opid: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Repr*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_ASCII*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Str*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Bytes*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_IsSubclass*(derived: PyObjectPtr; cls: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_IsInstance*(inst: PyObjectPtr; cls: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCallable_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Call*(callable_object: PyObjectPtr; args: PyObjectPtr; kw: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_CallObject*(callable_object: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_CallFunction*(callable: PyObjectPtr; format: cstring): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyObject_CallMethod*(o: PyObjectPtr; meth: cstring; format: cstring): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyObject_CallFunctionObjArgs*(callable: PyObjectPtr): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.} #Last paramater HAS to be NULL {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_CallMethodObjArgs*(o: PyObjectPtr; name: PyObjectPtr): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.} #Last paramater HAS to be NULL {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Hash*(o: PyObjectPtr): PyHashT {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_HashNotImplemented*(o: PyObjectPtr): PyHashT {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_IsTrue*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Not*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Type*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_TypeCheck*(o: PyObjectPtr; typ: PyTypeObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Length*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Size*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_LengthHint*(o: PyObjectPtr; default: PySizeT): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GetItem*(o: PyObjectPtr; key: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_SetItem*(o: PyObjectPtr; key: PyObjectPtr; v: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_DelItem*(o: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_Dir*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GetIter*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc objectPrint*(o: PyObjectPtr; fp: File; flags: cint): cint {.cdecl, importc: "PyObject_Print" dynlib: libraryString.}
+proc objectHasAttr*(o: PyObjectPtr; attr_name: PyObjectPtr): cint {.cdecl, importc: "PyObject_HasAttr" dynlib: libraryString.}
+proc objectHasAttrString*(o: PyObjectPtr; attr_name: cstring): cint {.cdecl, importc: "PyObject_HasAttrString" dynlib: libraryString.}
+proc objectGetAttr*(o: PyObjectPtr; attr_name: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_GetAttr" dynlib: libraryString.}
+proc objectGetAttrString*(o: PyObjectPtr; attr_name: cstring): PyObjectPtr {.cdecl, importc: "PyObject_GetAttrString" dynlib: libraryString.}
+proc objectGenericGetAttr*(o: PyObjectPtr; name: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_GenericGetAttr" dynlib: libraryString.}
+proc objectSetAttr*(o: PyObjectPtr; attr_name: PyObjectPtr; v: PyObjectPtr): cint {.cdecl, importc: "PyObject_SetAttr" dynlib: libraryString.}
+proc objectSetAttrString*(o: PyObjectPtr; attr_name: cstring; v: PyObjectPtr): cint {.cdecl, importc: "PyObject_SetAttrString" dynlib: libraryString.}
+proc objectGenericSetAttr*(o: PyObjectPtr; name: PyObjectPtr; value: PyObjectPtr): cint {.cdecl, importc: "PyObject_GenericSetAttr" dynlib: libraryString.}
+proc objectDelAttr*(o: PyObjectPtr; attr_name: PyObjectPtr): cint {.cdecl, importc: "PyObject_DelAttr" dynlib: libraryString.}
+proc objectDelAttrString*(o: PyObjectPtr; attr_name: cstring): cint {.cdecl, importc: "PyObject_DelAttrString" dynlib: libraryString.}
+proc objectGenericGetDict*(o: PyObjectPtr; context: pointer): PyObjectPtr {.cdecl, importc: "PyObject_GenericGetDict" dynlib: libraryString.}
+proc objectGenericSetDict*(o: PyObjectPtr; context: pointer): cint {.cdecl, importc: "PyObject_GenericSetDict" dynlib: libraryString.}
+proc objectRichCompare*(o1: PyObjectPtr; o2: PyObjectPtr; opid: cint): PyObjectPtr {.cdecl, importc: "PyObject_RichCompare" dynlib: libraryString.}
+proc objectRichCompareBool*(o1: PyObjectPtr; o2: PyObjectPtr; opid: cint): cint {.cdecl, importc: "PyObject_RichCompareBool" dynlib: libraryString.}
+proc objectRepr*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Repr" dynlib: libraryString.}
+proc objectASCII*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_ASCII" dynlib: libraryString.}
+proc objectStr*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Str" dynlib: libraryString.}
+proc objectBytes*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Bytes" dynlib: libraryString.}
+proc objectIsSubclass*(derived: PyObjectPtr; cls: PyObjectPtr): cint {.cdecl, importc: "PyObject_IsSubclass" dynlib: libraryString.}
+proc objectIsInstance*(inst: PyObjectPtr; cls: PyObjectPtr): cint {.cdecl, importc: "PyObject_IsInstance" dynlib: libraryString.}
+proc callableCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyCallable_Check" dynlib: libraryString.}
+proc objectCall*(callable_object: PyObjectPtr; args: PyObjectPtr; kw: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Call" dynlib: libraryString.}
+proc objectCallObject*(callable_object: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_CallObject" dynlib: libraryString.}
+proc objectCallFunction*(callable: PyObjectPtr; format: cstring): PyObjectPtr {.varargs, cdecl, importc: "PyObject_CallFunction" dynlib: libraryString.}
+proc objectCallMethod*(o: PyObjectPtr; meth: cstring; format: cstring): PyObjectPtr {.varargs, cdecl, importc: "PyObject_CallMethod" dynlib: libraryString.}
+proc objectCallFunctionObjArgs*(callable: PyObjectPtr): PyObjectPtr {.varargs, cdecl, importc: "PyObject_CallFunctionObjArgs" dynlib: libraryString.} #Last paramater HAS to be NULL {.cdecl, importc: "PyObject_CallFunctionObjArgs" dynlib: libraryString.}
+proc objectCallMethodObjArgs*(o: PyObjectPtr; name: PyObjectPtr): PyObjectPtr {.varargs, cdecl, importc: "PyObject_CallMethodObjArgs" dynlib: libraryString.} #Last paramater HAS to be NULL {.cdecl, importc: "PyObject_CallMethodObjArgs" dynlib: libraryString.}
+proc objectHash*(o: PyObjectPtr): PyHashT {.cdecl, importc: "PyObject_Hash" dynlib: libraryString.}
+proc objectHashNotImplemented*(o: PyObjectPtr): PyHashT {.cdecl, importc: "PyObject_HashNotImplemented" dynlib: libraryString.}
+proc objectIsTrue*(o: PyObjectPtr): cint {.cdecl, importc: "PyObject_IsTrue" dynlib: libraryString.}
+proc objectNot*(o: PyObjectPtr): cint {.cdecl, importc: "PyObject_Not" dynlib: libraryString.}
+proc objectType*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Type" dynlib: libraryString.}
+proc objectTypeCheck*(o: PyObjectPtr; typ: PyTypeObjectPtr): cint {.cdecl, importc: "PyObject_TypeCheck" dynlib: libraryString.}
+proc objectLength*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Length" dynlib: libraryString.}
+proc objectSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Size" dynlib: libraryString.}
+proc objectLengthHint*(o: PyObjectPtr; default: PySizeT): PySizeT {.cdecl, importc: "PyObject_LengthHint" dynlib: libraryString.}
+proc objectGetItem*(o: PyObjectPtr; key: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_GetItem" dynlib: libraryString.}
+proc objectSetItem*(o: PyObjectPtr; key: PyObjectPtr; v: PyObjectPtr): cint {.cdecl, importc: "PyObject_SetItem" dynlib: libraryString.}
+proc objectDelItem*(o: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PyObject_DelItem" dynlib: libraryString.}
+proc objectDir*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Dir" dynlib: libraryString.}
+proc objectGetIter*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_GetIter" dynlib: libraryString.}
 
 #Number Protocol
-proc PyNumber_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Add*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Subtract*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Multiply*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_FloorDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_TrueDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Remainder*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Divmod*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Power*(o1: PyObjectPtr; o2: PyObjectPtr; o3: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Negative*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Positive*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Absolute*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Invert*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Lshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Rshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_And*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Xor*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Or*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceAdd*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceSubtract*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceMultiply*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceFloorDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceTrueDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceRemainder*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlacePower*(o1: PyObjectPtr; o2: PyObjectPtr; o3: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceLshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceRshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceAnd*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceXor*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_InPlaceOr*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Long*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Float*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_Index*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_ToBase*(n: PyObjectPtr; base: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyNumber_AsSsize_t*(o: PyObjectPtr; exc: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyIndex_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc numberCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyNumber_Check" dynlib: libraryString.}
+proc numberAdd*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Add" dynlib: libraryString.}
+proc numberSubtract*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Subtract" dynlib: libraryString.}
+proc numberMultiply*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Multiply" dynlib: libraryString.}
+proc numberFloorDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_FloorDivide" dynlib: libraryString.}
+proc numberTrueDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_TrueDivide" dynlib: libraryString.}
+proc numberRemainder*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Remainder" dynlib: libraryString.}
+proc numberDivmod*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Divmod" dynlib: libraryString.}
+proc numberPower*(o1: PyObjectPtr; o2: PyObjectPtr; o3: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Power" dynlib: libraryString.}
+proc numberNegative*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Negative" dynlib: libraryString.}
+proc numberPositive*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Positive" dynlib: libraryString.}
+proc numberAbsolute*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Absolute" dynlib: libraryString.}
+proc numberInvert*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Invert" dynlib: libraryString.}
+proc numberLshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Lshift" dynlib: libraryString.}
+proc numberRshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Rshift" dynlib: libraryString.}
+proc numberAnd*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_And" dynlib: libraryString.}
+proc numberXor*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Xor" dynlib: libraryString.}
+proc numberOr*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Or" dynlib: libraryString.}
+proc numberInPlaceAdd*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceAdd" dynlib: libraryString.}
+proc numberInPlaceSubtract*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceSubtract" dynlib: libraryString.}
+proc numberInPlaceMultiply*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceMultiply" dynlib: libraryString.}
+proc numberInPlaceFloorDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceFloorDivide" dynlib: libraryString.}
+proc numberInPlaceTrueDivide*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceTrueDivide" dynlib: libraryString.}
+proc numberInPlaceRemainder*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceRemainder" dynlib: libraryString.}
+proc numberInPlacePower*(o1: PyObjectPtr; o2: PyObjectPtr; o3: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlacePower" dynlib: libraryString.}
+proc numberInPlaceLshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceLshift" dynlib: libraryString.}
+proc numberInPlaceRshift*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceRshift" dynlib: libraryString.}
+proc numberInPlaceAnd*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceAnd" dynlib: libraryString.}
+proc numberInPlaceXor*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceXor" dynlib: libraryString.}
+proc numberInPlaceOr*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_InPlaceOr" dynlib: libraryString.}
+proc numberLong*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Long" dynlib: libraryString.}
+proc numberFloat*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Float" dynlib: libraryString.}
+proc numberIndex*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyNumber_Index" dynlib: libraryString.}
+proc numberToBase*(n: PyObjectPtr; base: cint): PyObjectPtr {.cdecl, importc: "PyNumber_ToBase" dynlib: libraryString.}
+proc numberAsSsizeT*(o: PyObjectPtr; exc: PyObjectPtr): PySizeT {.cdecl, importc: "PyNumber_AsSsize_t" dynlib: libraryString.}
+proc indexCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyIndex_Check" dynlib: libraryString.}
 
 #Sequence Protocol
-proc PySequence_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Size*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Length*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Concat*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Repeat*(o: PyObjectPtr; count: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_InPlaceConcat*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_InPlaceRepeat*(o: PyObjectPtr; count: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_GetItem*(o: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_GetSlice*(o: PyObjectPtr; i1: PySizeT; i2: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_SetItem*(o: PyObjectPtr; i: PySizeT; v: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_DelItem*(o: PyObjectPtr; i: PySizeT): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_SetSlice*(o: PyObjectPtr; i1: PySizeT; i2: PySizeT; v: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_DelSlice*(o: PyObjectPtr; i1: PySizeT; i2: PySizeT): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Count*(o: PyObjectPtr; value: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Contains*(o: PyObjectPtr; value: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Index*(o: PyObjectPtr; value: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_List*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Tuple*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Fast*(o: PyObjectPtr; m: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Fast_GET_ITEM*(o: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Fast_ITEMS*(o: PyObjectPtr): ptr PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_ITEM*(o: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySequence_Fast_GET_SIZE*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
+proc sequenceCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PySequence_Check" dynlib: libraryString.}
+proc sequenceSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PySequence_Size" dynlib: libraryString.}
+proc sequenceLength*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PySequence_Length" dynlib: libraryString.}
+proc sequenceConcat*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySequence_Concat" dynlib: libraryString.}
+proc sequenceRepeat*(o: PyObjectPtr; count: PySizeT): PyObjectPtr {.cdecl, importc: "PySequence_Repeat" dynlib: libraryString.}
+proc sequenceInPlaceConcat*(o1: PyObjectPtr; o2: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySequence_InPlaceConcat" dynlib: libraryString.}
+proc sequenceInPlaceRepeat*(o: PyObjectPtr; count: PySizeT): PyObjectPtr {.cdecl, importc: "PySequence_InPlaceRepeat" dynlib: libraryString.}
+proc sequenceGetItem*(o: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc: "PySequence_GetItem" dynlib: libraryString.}
+proc sequenceGetSlice*(o: PyObjectPtr; i1: PySizeT; i2: PySizeT): PyObjectPtr {.cdecl, importc: "PySequence_GetSlice" dynlib: libraryString.}
+proc sequenceSetItem*(o: PyObjectPtr; i: PySizeT; v: PyObjectPtr): cint {.cdecl, importc: "PySequence_SetItem" dynlib: libraryString.}
+proc sequenceDelItem*(o: PyObjectPtr; i: PySizeT): cint {.cdecl, importc: "PySequence_DelItem" dynlib: libraryString.}
+proc sequenceSetSlice*(o: PyObjectPtr; i1: PySizeT; i2: PySizeT; v: PyObjectPtr): cint {.cdecl, importc: "PySequence_SetSlice" dynlib: libraryString.}
+proc sequenceDelSlice*(o: PyObjectPtr; i1: PySizeT; i2: PySizeT): cint {.cdecl, importc: "PySequence_DelSlice" dynlib: libraryString.}
+proc sequenceCount*(o: PyObjectPtr; value: PyObjectPtr): PySizeT {.cdecl, importc: "PySequence_Count" dynlib: libraryString.}
+proc sequenceContains*(o: PyObjectPtr; value: PyObjectPtr): cint {.cdecl, importc: "PySequence_Contains" dynlib: libraryString.}
+proc sequenceIndex*(o: PyObjectPtr; value: PyObjectPtr): PySizeT {.cdecl, importc: "PySequence_Index" dynlib: libraryString.}
+proc sequenceList*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySequence_List" dynlib: libraryString.}
+proc sequenceTuple*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySequence_Tuple" dynlib: libraryString.}
+proc sequenceFast*(o: PyObjectPtr; m: cstring): PyObjectPtr {.cdecl, importc: "PySequence_Fast" dynlib: libraryString.}
+proc sequenceFastGetItem*(o: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc: "PySequence_Fast_GET_ITEM" dynlib: libraryString.}
+proc sequenceFastItems*(o: PyObjectPtr): ptr PyObjectPtr {.cdecl, importc: "PySequence_Fast_ITEMS" dynlib: libraryString.}
+proc sequenceItem*(o: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc: "PySequence_ITEM" dynlib: libraryString.}
+proc sequenceFastGetSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PySequence_Fast_GET_SIZE" dynlib: libraryString.}
 
 #Mapping Protocol
-proc PyMapping_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_Size*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_Length*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_DelItemString*(o: PyObjectPtr; key: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_DelItem*(o: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_HasKeyString*(o: PyObjectPtr; key: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_HasKey*(o: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_Keys*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_Values*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_Items*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_GetItemString*(o: PyObjectPtr; key: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMapping_SetItemString*(o: PyObjectPtr; key: cstring; v: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc mappingCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyMapping_Check" dynlib: libraryString.}
+proc mappingSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyMapping_Size" dynlib: libraryString.}
+proc mappingLength*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyMapping_Length" dynlib: libraryString.}
+proc mappingDelItemString*(o: PyObjectPtr; key: cstring): cint {.cdecl, importc: "PyMapping_DelItemString" dynlib: libraryString.}
+proc mappingDelItem*(o: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PyMapping_DelItem" dynlib: libraryString.}
+proc mappingHasKeyString*(o: PyObjectPtr; key: cstring): cint {.cdecl, importc: "PyMapping_HasKeyString" dynlib: libraryString.}
+proc mappingHasKey*(o: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PyMapping_HasKey" dynlib: libraryString.}
+proc mappingKeys*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMapping_Keys" dynlib: libraryString.}
+proc mappingValues*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMapping_Values" dynlib: libraryString.}
+proc mappingItems*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMapping_Items" dynlib: libraryString.}
+proc mappingGetItemString*(o: PyObjectPtr; key: cstring): PyObjectPtr {.cdecl, importc: "PyMapping_GetItemString" dynlib: libraryString.}
+proc mappingSetItemString*(o: PyObjectPtr; key: cstring; v: PyObjectPtr): cint {.cdecl, importc: "PyMapping_SetItemString" dynlib: libraryString.}
 
 #Iterator Protocol
-proc PyIter_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyIter_Next*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_CheckBuffer*(obj: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_GetBuffer*(exporter: PyObjectPtr; view: PyBufferPtr; flags: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyBuffer_Release*(view: PyBufferPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyBuffer_SizeFromFormat*(arg: cstring): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyBuffer_IsContiguous*(view: PyBufferPtr; order: char): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyBuffer_FillContiguousStrides*(ndim: cint; shape: PySizeTPtr; strides: PySizeTPtr; itemsize: PySizeT; order: char) {.cdecl, importc, dynlib: libraryString.}
-proc PyBuffer_FillInfo*(view: PyBufferPtr; exporter: PyObjectPtr; buf: pointer; len: PySizeT; readonly: cint; flags: cint): cint {.cdecl, importc, dynlib: libraryString.}
+proc iterCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyIter_Check" dynlib: libraryString.}
+proc iterNext*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyIter_Next" dynlib: libraryString.}
+proc objectCheckBuffer*(obj: PyObjectPtr): cint {.cdecl, importc: "PyObject_CheckBuffer" dynlib: libraryString.}
+proc objectGetBuffer*(exporter: PyObjectPtr; view: PyBufferPtr; flags: cint): cint {.cdecl, importc: "PyObject_GetBuffer" dynlib: libraryString.}
+proc bufferRelease*(view: PyBufferPtr) {.cdecl, importc: "PyBuffer_Release" dynlib: libraryString.}
+proc bufferSizeFromFormat*(arg: cstring): PySizeT {.cdecl, importc: "PyBuffer_SizeFromFormat" dynlib: libraryString.}
+proc bufferIsContiguous*(view: PyBufferPtr; order: char): cint {.cdecl, importc: "PyBuffer_IsContiguous" dynlib: libraryString.}
+proc bufferFillContiguousStrides*(ndim: cint; shape: PySizeTPtr; strides: PySizeTPtr; itemsize: PySizeT; order: char) {.cdecl, importc: "PyBuffer_FillContiguousStrides" dynlib: libraryString.}
+proc bufferFillInfo*(view: PyBufferPtr; exporter: PyObjectPtr; buf: pointer; len: PySizeT; readonly: cint; flags: cint): cint {.cdecl, importc: "PyBuffer_FillInfo" dynlib: libraryString.}
 
 #Type Objects
 type
@@ -849,86 +857,86 @@ type
     slots*: PyTypeSlotPtr
     
 var 
-  PyType_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyType_Type"))
-  PyBaseObject_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyBaseObject_Type"))
-  PySuper_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySuper_Type"))
+  typeType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyType_Type"))
+  baseObjectType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyBaseObject_Type"))
+  superType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySuper_Type"))
 
-proc PyType_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_CheckExact*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_ClearCache*(): cuint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_GetFlags*(typ: PyTypeObjectPtr): clong {.cdecl, importc, dynlib: libraryString.}
-proc PyType_Modified*(typ: PyTypeObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyType_HasFeature*(o: PyTypeObjectPtr; feature: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_IS_GC*(o: PyTypeObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_IsSubtype*(a: PyTypeObjectPtr; b: PyTypeObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_GenericAlloc*(typ: PyTypeObjectPtr; nitems: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyType_GenericNew*(typ: PyTypeObjectPtr; args: PyObjectPtr; kwds: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyType_Ready*(typ: PyTypeObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyType_FromSpec*(spec: PyTypeSpecPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyType_FromSpecWithBases*(spec: PyTypeSpecPtr; bases: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyType_GetSlot*(typ: PyTypeObjectPtr; slot: cint): pointer {.cdecl, importc, dynlib: libraryString.}
+proc typeCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyType_Check" dynlib: libraryString.}
+proc typeCheckExact*(o: PyObjectPtr): cint {.cdecl, importc: "PyType_CheckExact" dynlib: libraryString.}
+proc typeClearCache*(): cuint {.cdecl, importc: "PyType_ClearCache" dynlib: libraryString.}
+proc typeGetFlags*(typ: PyTypeObjectPtr): clong {.cdecl, importc: "PyType_GetFlags" dynlib: libraryString.}
+proc typeModified*(typ: PyTypeObjectPtr) {.cdecl, importc: "PyType_Modified" dynlib: libraryString.}
+proc typeHasFeature*(o: PyTypeObjectPtr; feature: cint): cint {.cdecl, importc: "PyType_HasFeature" dynlib: libraryString.}
+proc typeISGC*(o: PyTypeObjectPtr): cint {.cdecl, importc: "PyType_IS_GC" dynlib: libraryString.}
+proc typeIsSubtype*(a: PyTypeObjectPtr; b: PyTypeObjectPtr): cint {.cdecl, importc: "PyType_IsSubtype" dynlib: libraryString.}
+proc typeGenericAlloc*(typ: PyTypeObjectPtr; nitems: PySizeT): PyObjectPtr {.cdecl, importc: "PyType_GenericAlloc" dynlib: libraryString.}
+proc typeGenericNew*(typ: PyTypeObjectPtr; args: PyObjectPtr; kwds: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyType_GenericNew" dynlib: libraryString.}
+proc typeReady*(typ: PyTypeObjectPtr): cint {.cdecl, importc: "PyType_Ready" dynlib: libraryString.}
+proc typeFromSpec*(spec: PyTypeSpecPtr): PyObjectPtr {.cdecl, importc: "PyType_FromSpec" dynlib: libraryString.}
+proc typeFromSpecWithBases*(spec: PyTypeSpecPtr; bases: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyType_FromSpecWithBases" dynlib: libraryString.}
+proc typeGetSlot*(typ: PyTypeObjectPtr; slot: cint): pointer {.cdecl, importc: "PyType_GetSlot" dynlib: libraryString.}
 
 #The None Object
-var Py_NoneStruct*: PyObject = cast[PyObject](dynlib.symAddr(libraryHandle, "_Py_NoneStruct"))
+var noneStruct*: PyObject = cast[PyObject](dynlib.symAddr(libraryHandle, "_Py_NoneStruct"))
 
-template Py_None*(): expr = addr(Py_NoneStruct)
-template Py_RETURN_NONE*(): expr =
-    Py_INCREF(Py_None)
-    return Py_None
+template none*(): expr = addr(noneStruct)
+template returnNone*(): expr =
+    incref(none())
+    return none()
 
 #Integer Objects
 var PyLong_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyLong_Type"))
 
-proc PyLong_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromLong*(v: clong): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromUnsignedLong*(v: culong): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromSsize_t*(v: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromSize_t*(v: csize): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc longCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyLong_Check" dynlib: libraryString.}
+proc longCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyLong_CheckExact" dynlib: libraryString.}
+proc longFromLong*(v: clong): PyObjectPtr {.cdecl, importc: "PyLong_FromLong" dynlib: libraryString.}
+proc longFromUnsignedLong*(v: culong): PyObjectPtr {.cdecl, importc: "PyLong_FromUnsignedLong" dynlib: libraryString.}
+proc longFromSsizeT*(v: PySizeT): PyObjectPtr {.cdecl, importc: "PyLong_FromSsize_t" dynlib: libraryString.}
+proc longFromSizeT*(v: csize): PyObjectPtr {.cdecl, importc: "PyLong_FromSize_t" dynlib: libraryString.}
 #PyObject* PyLong_FromLongLong(PY_LONG_LONG v);
 #PyObject* PyLong_FromUnsignedLongLong(unsigned PY_LONG_LONG v);
 
-proc PyLong_FromDouble*(v: cdouble): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromString*(str: cstring; pend: cstringArray; base: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromUnicode*(u: PyUnicodePtr; length: PySizeT; base: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromUnicodeObject*(u: PyObjectPtr; base: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_FromVoidPtr*(p: pointer): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsLong*(obj: PyObjectPtr): clong {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsLongAndOverflow*(obj: PyObjectPtr; overflow: ptr cint): clong {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsLongLong*(obj: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsLongLongAndOverflow*(obj: PyObjectPtr; overflow: ptr cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsSsize_t*(pylong: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsUnsignedLong*(pylong: PyObjectPtr): culong {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsSize_t*(pylong: PyObjectPtr): csize {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsUnsignedLongLong*(pylong: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc longFromDouble*(v: cdouble): PyObjectPtr {.cdecl, importc: "PyLong_FromDouble" dynlib: libraryString.}
+proc longFromString*(str: cstring; pend: cstringArray; base: cint): PyObjectPtr {.cdecl, importc: "PyLong_FromString" dynlib: libraryString.}
+proc longFromUnicode*(u: PyUnicodePtr; length: PySizeT; base: cint): PyObjectPtr {.cdecl, importc: "PyLong_FromUnicode" dynlib: libraryString.}
+proc longFromUnicodeObject*(u: PyObjectPtr; base: cint): PyObjectPtr {.cdecl, importc: "PyLong_FromUnicodeObject" dynlib: libraryString.}
+proc longFromVoidPtr*(p: pointer): PyObjectPtr {.cdecl, importc: "PyLong_FromVoidPtr" dynlib: libraryString.}
+proc longAsLong*(obj: PyObjectPtr): clong {.cdecl, importc: "PyLong_AsLong" dynlib: libraryString.}
+proc longAsLongAndOverflow*(obj: PyObjectPtr; overflow: ptr cint): clong {.cdecl, importc: "PyLong_AsLongAndOverflow" dynlib: libraryString.}
+proc longAsLongLong*(obj: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyLong_AsLongLong" dynlib: libraryString.}
+proc longAsLongLongAndOverflow*(obj: PyObjectPtr; overflow: ptr cint): PyObjectPtr {.cdecl, importc: "PyLong_AsLongLongAndOverflow" dynlib: libraryString.}
+proc longAsSsizeT*(pylong: PyObjectPtr): PySizeT {.cdecl, importc: "PyLong_AsSsize_t" dynlib: libraryString.}
+proc longAsUnsignedLong*(pylong: PyObjectPtr): culong {.cdecl, importc: "PyLong_AsUnsignedLong" dynlib: libraryString.}
+proc longAsSizeT*(pylong: PyObjectPtr): csize {.cdecl, importc: "PyLong_AsSize_t" dynlib: libraryString.}
+proc longAsUnsignedLongLong*(pylong: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyLong_AsUnsignedLongLong" dynlib: libraryString.}
 
-proc PyLong_AsUnsignedLongMask*(obj: PyObjectPtr): culong {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsUnsignedLongLongMask*(obj: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc longAsUnsignedLongMask*(obj: PyObjectPtr): culong {.cdecl, importc: "PyLong_AsUnsignedLongMask" dynlib: libraryString.}
+proc longAsUnsignedLongLongMask*(obj: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyLong_AsUnsignedLongLongMask" dynlib: libraryString.}
 
-proc PyLong_AsDouble*(pylong: PyObjectPtr): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyLong_AsVoidPtr*(pylong: PyObjectPtr): pointer {.cdecl, importc, dynlib: libraryString.}
+proc longAsDouble*(pylong: PyObjectPtr): cdouble {.cdecl, importc: "PyLong_AsDouble" dynlib: libraryString.}
+proc longAsVoidPtr*(pylong: PyObjectPtr): pointer {.cdecl, importc: "PyLong_AsVoidPtr" dynlib: libraryString.}
 
 #Boolean Objects
 var 
-  Py_False*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "Py_False"))
-  Py_True*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "Py_True"))
+  pyFalse*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "Py_False"))
+  pyTrue*: PyObjectPtr = cast[PyObjectPtr](dynlib.symAddr(libraryHandle, "Py_True"))
 
-proc PyBool_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyBool_FromLong*(v: clong): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc boolCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyBool_Check" dynlib: libraryString.}
+proc boolFromLong*(v: clong): PyObjectPtr {.cdecl, importc: "PyBool_FromLong" dynlib: libraryString.}
 
 #Floating Point Objects
-var PyFloat_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyFloat_Type"))
+var floatType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyFloat_Type"))
 
-proc PyFloat_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_FromString*(str: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_FromDouble*(v: cdouble): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_AsDouble*(pyfloat: PyObjectPtr): cdouble {.cdecl, importc, dynlib: libraryString.}
+proc floatCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyFloat_Check" dynlib: libraryString.}
+proc floatCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyFloat_CheckExact" dynlib: libraryString.}
+proc floatFromString*(str: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFloat_FromString" dynlib: libraryString.}
+proc floatFromDouble*(v: cdouble): PyObjectPtr {.cdecl, importc: "PyFloat_FromDouble" dynlib: libraryString.}
+proc floatAsDouble*(pyfloat: PyObjectPtr): cdouble {.cdecl, importc: "PyFloat_AsDouble" dynlib: libraryString.}
 #proc PyFloat_AS_DOUBLE*(pyfloat: PyObjectPtr): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_GetInfo*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_GetMax*(): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_GetMin*(): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyFloat_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc floatGetInfo*(): PyObjectPtr {.cdecl, importc: "PyFloat_GetInfo" dynlib: libraryString.}
+proc floatGetMax*(): cdouble {.cdecl, importc: "PyFloat_GetMax" dynlib: libraryString.}
+proc floatGetMin*(): cdouble {.cdecl, importc: "PyFloat_GetMin" dynlib: libraryString.}
+proc floatClearFreeList*(): cint {.cdecl, importc: "PyFloat_ClearFreeList" dynlib: libraryString.}
 
 #Complex Number Objects
 type
@@ -936,70 +944,70 @@ type
     real*: float64
     imag*: float64
 
-var PyComplex_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyComplex_Type"))
+var complexType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyComplex_Type"))
 
-proc Py_c_sum*(left: PyComplex; right: PyComplex): PyComplex {.cdecl, importc: "_Py_c_sum", dynlib: libraryString.}
-proc Py_c_diff*(left: PyComplex; right: PyComplex): PyComplex {.cdecl, importc: "_Py_c_diff", dynlib: libraryString.}
-proc Py_c_neg*(complex: PyComplex): PyComplex {.cdecl, importc: "_Py_c_neg", dynlib: libraryString.}
-proc Py_c_prod*(left: PyComplex; right: PyComplex): PyComplex {.cdecl, importc: "_Py_c_prod", dynlib: libraryString.}
-proc Py_c_quot*(dividend: PyComplex; divisor: PyComplex): PyComplex {.cdecl, importc: "_Py_c_quot", dynlib: libraryString.}
-proc Py_c_pow*(num: PyComplex; exp: PyComplex): PyComplex {.cdecl, importc: "_Py_c_pow", dynlib: libraryString.}
-proc PyComplex_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyComplex_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyComplex_FromCComplex*(v: PyComplex): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyComplex_FromDoubles*(real: cdouble; imag: cdouble): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyComplex_RealAsDouble*(op: PyObjectPtr): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyComplex_ImagAsDouble*(op: PyObjectPtr): cdouble {.cdecl, importc, dynlib: libraryString.}
-proc PyComplex_AsCComplex*(op: PyObjectPtr): PyComplex {.cdecl, importc, dynlib: libraryString.}
+proc cSum*(left: PyComplex; right: PyComplex): PyComplex {.cdecl, importc: "_cSum", dynlib: libraryString.}
+proc cDiff*(left: PyComplex; right: PyComplex): PyComplex {.cdecl, importc: "_cDiff", dynlib: libraryString.}
+proc cNeg*(complex: PyComplex): PyComplex {.cdecl, importc: "_cNeg", dynlib: libraryString.}
+proc cProd*(left: PyComplex; right: PyComplex): PyComplex {.cdecl, importc: "_cProd", dynlib: libraryString.}
+proc cQuot*(dividend: PyComplex; divisor: PyComplex): PyComplex {.cdecl, importc: "_cQuot", dynlib: libraryString.}
+proc cPow*(num: PyComplex; exp: PyComplex): PyComplex {.cdecl, importc: "_cPow", dynlib: libraryString.}
+proc complexCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyComplex_Check" dynlib: libraryString.}
+proc complexCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyComplex_CheckExact" dynlib: libraryString.}
+proc complexFromCComplex*(v: PyComplex): PyObjectPtr {.cdecl, importc: "PyComplex_FromCComplex" dynlib: libraryString.}
+proc complexFromDoubles*(real: cdouble; imag: cdouble): PyObjectPtr {.cdecl, importc: "PyComplex_FromDoubles" dynlib: libraryString.}
+proc complexRealAsDouble*(op: PyObjectPtr): cdouble {.cdecl, importc: "PyComplex_RealAsDouble" dynlib: libraryString.}
+proc complexImagAsDouble*(op: PyObjectPtr): cdouble {.cdecl, importc: "PyComplex_ImagAsDouble" dynlib: libraryString.}
+proc complexAsCComplex*(op: PyObjectPtr): PyComplex {.cdecl, importc: "PyComplex_AsCComplex" dynlib: libraryString.}
 
 #Bytes Objects
-var PyBytes_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyBytes_Type"))
+var bytesType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyBytes_Type"))
 
-proc PyBytes_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_CheckExact*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_FromString*(v: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_FromStringAndSize*(v: cstring; len: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_FromFormat*(format: cstring): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyBytes_FromFormatV*(format: cstring; vargs: varargs): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_FromObject*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_Size*(o: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
+proc bytesCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyBytes_Check" dynlib: libraryString.}
+proc bytesCheckExact*(o: PyObjectPtr): cint {.cdecl, importc: "PyBytes_CheckExact" dynlib: libraryString.}
+proc bytesFromString*(v: cstring): PyObjectPtr {.cdecl, importc: "PyBytes_FromString" dynlib: libraryString.}
+proc bytesFromStringAndSize*(v: cstring; len: PySizeT): PyObjectPtr {.cdecl, importc: "PyBytes_FromStringAndSize" dynlib: libraryString.}
+proc bytesFromFormat*(format: cstring): PyObjectPtr {.varargs, cdecl, importc: "PyBytes_FromFormat" dynlib: libraryString.}
+proc bytesFromFormatV*(format: cstring; vargs: varargs): PyObjectPtr {.cdecl, importc: "PyBytes_FromFormatV" dynlib: libraryString.}
+proc bytesFromObject*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyBytes_FromObject" dynlib: libraryString.}
+proc bytesSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyBytes_Size" dynlib: libraryString.}
 #proc PyBytes_GET_SIZE*(o: PyObjectPtr): PySizeT
-proc PyBytes_AsString*(o: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
+proc bytesAsString*(o: PyObjectPtr): cstring {.cdecl, importc: "PyBytes_AsString" dynlib: libraryString.}
 #proc PyBytes_AS_STRING*(string: PyObjectPtr): cstring
-proc PyBytes_AsStringAndSize*(obj: PyObjectPtr; buffer: cstringArray; length: PySizeTPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_Concat*(bytes: ptr PyObjectPtr; newpart: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_ConcatAndDel*(bytes: ptr PyObjectPtr; newpart: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyBytes_Resize*(bytes: ptr PyObjectPtr; newsize: PySizeT): cint {.cdecl, importc: "_PyBytes_Resize", dynlib: libraryString.}
+proc bytesAsStringAndSize*(obj: PyObjectPtr; buffer: cstringArray; length: PySizeTPtr): cint {.cdecl, importc: "PyBytes_AsStringAndSize" dynlib: libraryString.}
+proc bytesConcat*(bytes: ptr PyObjectPtr; newpart: PyObjectPtr) {.cdecl, importc: "PyBytes_Concat" dynlib: libraryString.}
+proc bytesConcatAndDel*(bytes: ptr PyObjectPtr; newpart: PyObjectPtr) {.cdecl, importc: "PyBytes_ConcatAndDel" dynlib: libraryString.}
+proc bytesResize*(bytes: ptr PyObjectPtr; newsize: PySizeT): cint {.cdecl, importc: "_bytesResize", dynlib: libraryString.}
 
 #Byte Array Objects
-var PyByteArray_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyByteArray_Type"))
+var byteArrayType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyByteArray_Type"))
 
-proc PyByteArray_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_CheckExact*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_FromObject*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_FromStringAndSize*(string: cstring; length: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_Concat*(a: PyObjectPtr; b: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_Size*(bytearray: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_AsString*(bytearray: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyByteArray_Resize*(bytearray: PyObjectPtr; length: PySizeT): cint {.cdecl, importc, dynlib: libraryString.}
+proc byteArrayCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyByteArray_Check" dynlib: libraryString.}
+proc byteArrayCheckExact*(o: PyObjectPtr): cint {.cdecl, importc: "PyByteArray_CheckExact" dynlib: libraryString.}
+proc byteArrayFromObject*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyByteArray_FromObject" dynlib: libraryString.}
+proc byteArrayFromStringAndSize*(string: cstring; length: PySizeT): PyObjectPtr {.cdecl, importc: "PyByteArray_FromStringAndSize" dynlib: libraryString.}
+proc byteArrayConcat*(a: PyObjectPtr; b: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyByteArray_Concat" dynlib: libraryString.}
+proc byteArraySize*(bytearray: PyObjectPtr): PySizeT {.cdecl, importc: "PyByteArray_Size" dynlib: libraryString.}
+proc byteArrayAsString*(bytearray: PyObjectPtr): cstring {.cdecl, importc: "PyByteArray_AsString" dynlib: libraryString.}
+proc byteArrayResize*(bytearray: PyObjectPtr; length: PySizeT): cint {.cdecl, importc: "PyByteArray_Resize" dynlib: libraryString.}
 
 #Unicode Objects and Codecs
 type 
-  Py_UCS1* = cuchar
-  Py_UCS2* = cushort
+  PyUCS1* = cuchar
+  PyUCS2* = cushort
 
 when sizeof(int) == 4: 
   type 
-    Py_UCS4* = cuint
+    PyUCS4* = cuint
 elif sizeof(clong) == 4: 
   type 
-    Py_UCS4* = culong
+    PyUCS4* = culong
 type 
-  INNER_C_UNION_4256751451* = object  {.union.}
+  UcsUnion* = object  {.union.}
     any*: pointer
-    latin1*: ptr Py_UCS1
-    ucs2*: ptr Py_UCS2
-    ucs4*: ptr Py_UCS4
+    latin1*: ptr PyUCS1
+    ucs2*: ptr PyUCS2
+    ucs4*: ptr PyUCS4
 
   PyASCIIObject* = object 
     ob_base*: PyObject
@@ -1015,13 +1023,13 @@ type
   
   PyUnicodeObject* = object 
     base*: PyCompactUnicodeObject
-    data*: INNER_C_UNION_4256751451 # Canonical, smallest-form Unicode buffer 
+    data*: UcsUnion # Canonical, smallest-form Unicode buffer 
 
-var PyUnicode_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyUnicode_Type"))
+var unicodeType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyUnicode_Type"))
 
 #Unicode type
-proc PyUnicode_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_CheckExact*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc unicodeCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyUnicode_Check" dynlib: libraryString.}
+proc unicodeCheckExact*(o: PyObjectPtr): cint {.cdecl, importc: "PyUnicode_CheckExact" dynlib: libraryString.}
 #proc PyUnicode_READY*(o: PyObjectPtr): cint
 #proc PyUnicode_GET_LENGTH*(o: PyObjectPtr): PySizeT
 #proc PyUnicode_1BYTE_DATA*(o: PyObjectPtr): ptr Py_UCS1
@@ -1037,117 +1045,117 @@ proc PyUnicode_CheckExact*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libra
 #proc PyUnicode_READ*(kind: cint; data: pointer; index: PySizeT): Py_UCS4
 #proc PyUnicode_READ_CHAR*(o: PyObjectPtr; index: PySizeT): Py_UCS4
 #PyUnicode_MAX_CHAR_VALUE(PyObject * o)
-proc PyUnicode_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc unicodeClearFreeList*(): cint {.cdecl, importc: "PyUnicode_ClearFreeList" dynlib: libraryString.}
 #Creating and accessing Unicode strings
-proc PyUnicode_New*(size: PySizeT; maxchar: Py_UCS4): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FromKindAndData*(kind: cint; buffer: pointer; size: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FromStringAndSize*(u: cstring; size: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FromString*(u: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FromFormat*(format: cstring): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FromFormatV*(format: cstring; vargs: varargs): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FromEncodedObject*(obj: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_GetLength*(unicode: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_CopyCharacters*(to: PyObjectPtr; to_start: PySizeT; `from`: PyObjectPtr; from_start: PySizeT; how_many: PySizeT): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Fill*(unicode: PyObjectPtr; start: PySizeT; length: PySizeT; fill_char: Py_UCS4): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_WriteChar*(unicode: PyObjectPtr; index: PySizeT; character: Py_UCS4): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_ReadChar*(unicode: PyObjectPtr; index: PySizeT): Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Substring*(str: PyObjectPtr; start: PySizeT; `end`: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUCS4*(u: PyObjectPtr; buffer: ptr Py_UCS4; buflen: PySizeT; copy_null: cint): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUCS4Copy*(u: PyObjectPtr): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
+proc unicodeNew*(size: PySizeT; maxchar: Py_UCS4): PyObjectPtr {.cdecl, importc: "PyUnicode_New" dynlib: libraryString.}
+proc unicodeFromKindAndData*(kind: cint; buffer: pointer; size: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_FromKindAndData" dynlib: libraryString.}
+proc unicodeFromStringAndSize*(u: cstring; size: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_FromStringAndSize" dynlib: libraryString.}
+proc unicodeFromString*(u: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_FromString" dynlib: libraryString.}
+proc unicodeFromFormat*(format: cstring): PyObjectPtr {.varargs, cdecl, importc: "PyUnicode_FromFormat" dynlib: libraryString.}
+proc unicodeFromFormatV*(format: cstring; vargs: varargs): PyObjectPtr {.cdecl, importc: "PyUnicode_FromFormatV" dynlib: libraryString.}
+proc unicodeFromEncodedObject*(obj: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_FromEncodedObject" dynlib: libraryString.}
+proc unicodeGetLength*(unicode: PyObjectPtr): PySizeT {.cdecl, importc: "PyUnicode_GetLength" dynlib: libraryString.}
+proc unicodeCopyCharacters*(to: PyObjectPtr; to_start: PySizeT; `from`: PyObjectPtr; from_start: PySizeT; how_many: PySizeT): cint {.cdecl, importc: "PyUnicode_CopyCharacters" dynlib: libraryString.}
+proc unicodeFill*(unicode: PyObjectPtr; start: PySizeT; length: PySizeT; fill_char: Py_UCS4): PySizeT {.cdecl, importc: "PyUnicode_Fill" dynlib: libraryString.}
+proc unicodeWriteChar*(unicode: PyObjectPtr; index: PySizeT; character: Py_UCS4): cint {.cdecl, importc: "PyUnicode_WriteChar" dynlib: libraryString.}
+proc unicodeReadChar*(unicode: PyObjectPtr; index: PySizeT): Py_UCS4 {.cdecl, importc: "PyUnicode_ReadChar" dynlib: libraryString.}
+proc unicodeSubstring*(str: PyObjectPtr; start: PySizeT; `end`: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_Substring" dynlib: libraryString.}
+proc unicodeAsUCS4*(u: PyObjectPtr; buffer: ptr Py_UCS4; buflen: PySizeT; copy_null: cint): ptr Py_UCS4 {.cdecl, importc: "PyUnicode_AsUCS4" dynlib: libraryString.}
+proc unicodeAsUCS4Copy*(u: PyObjectPtr): ptr Py_UCS4 {.cdecl, importc: "PyUnicode_AsUCS4Copy" dynlib: libraryString.}
 #Locale Encoding
-proc PyUnicode_DecodeLocaleAndSize*(str: cstring; len: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeLocale*(str: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeLocale*(unicode: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeLocaleAndSize*(str: cstring; len: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeLocaleAndSize" dynlib: libraryString.}
+proc unicodeDecodeLocale*(str: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeLocale" dynlib: libraryString.}
+proc unicodeEncodeLocale*(unicode: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeLocale" dynlib: libraryString.}
 #File System Encoding
-proc PyUnicode_FSConverter*(obj: PyObjectPtr; result: pointer): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FSDecoder*(obj: PyObjectPtr; result: pointer): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeFSDefaultAndSize*(s: cstring; size: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeFSDefault*(s: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeFSDefault*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeFSConverter*(obj: PyObjectPtr; result: pointer): cint {.cdecl, importc: "PyUnicode_FSConverter" dynlib: libraryString.}
+proc unicodeFSDecoder*(obj: PyObjectPtr; result: pointer): cint {.cdecl, importc: "PyUnicode_FSDecoder" dynlib: libraryString.}
+proc unicodeDecodeFSDefaultAndSize*(s: cstring; size: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeFSDefaultAndSize" dynlib: libraryString.}
+proc unicodeDecodeFSDefault*(s: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeFSDefault" dynlib: libraryString.}
+proc unicodeEncodeFSDefault*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeFSDefault" dynlib: libraryString.}
 #wchar_t Support
-proc PyUnicode_FromWideChar*(w: PyUnicode; size: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsWideChar*(unicode: ptr PyUnicodeObject; w: PyUnicode; size: PySizeT): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsWideCharString*(unicode: PyObjectPtr; size: PySizeTPtr): PyUnicode {.cdecl, importc, dynlib: libraryString.}
+proc unicodeFromWideChar*(w: PyUnicode; size: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_FromWideChar" dynlib: libraryString.}
+proc unicodeAsWideChar*(unicode: ptr PyUnicodeObject; w: PyUnicode; size: PySizeT): PySizeT {.cdecl, importc: "PyUnicode_AsWideChar" dynlib: libraryString.}
+proc unicodeAsWideCharString*(unicode: PyObjectPtr; size: PySizeTPtr): PyUnicode {.cdecl, importc: "PyUnicode_AsWideCharString" dynlib: libraryString.}
 #UCS4 Support
-proc Py_UCS4_strlen*(u: ptr Py_UCS4): csize {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strcpy*(s1: ptr Py_UCS4; s2: ptr Py_UCS4): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strncpy*(s1: ptr Py_UCS4; s2: ptr Py_UCS4; n: csize): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strcat*(s1: ptr Py_UCS4; s2: ptr Py_UCS4): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strcmp*(s1: ptr Py_UCS4; s2: ptr Py_UCS4): cint {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strncmp*(s1: ptr Py_UCS4; s2: ptr Py_UCS4; n: csize): cint {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strchr*(s: ptr Py_UCS4; c: Py_UCS4): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
-proc Py_UCS4_strrchr*(s: ptr Py_UCS4; c: Py_UCS4): ptr Py_UCS4 {.cdecl, importc, dynlib: libraryString.}
+proc ucs4Strlen*(u: ptr Py_UCS4): csize {.cdecl, importc: "Py_UCS4_strlen" dynlib: libraryString.}
+proc ucs4Strcpy*(s1: ptr Py_UCS4; s2: ptr Py_UCS4): ptr Py_UCS4 {.cdecl, importc: "Py_UCS4_strcpy" dynlib: libraryString.}
+proc ucs4Strncpy*(s1: ptr Py_UCS4; s2: ptr Py_UCS4; n: csize): ptr Py_UCS4 {.cdecl, importc: "Py_UCS4_strncpy" dynlib: libraryString.}
+proc ucs4Strcat*(s1: ptr Py_UCS4; s2: ptr Py_UCS4): ptr Py_UCS4 {.cdecl, importc: "Py_UCS4_strcat" dynlib: libraryString.}
+proc ucs4Strcmp*(s1: ptr Py_UCS4; s2: ptr Py_UCS4): cint {.cdecl, importc: "Py_UCS4_strcmp" dynlib: libraryString.}
+proc ucs4Strncmp*(s1: ptr Py_UCS4; s2: ptr Py_UCS4; n: csize): cint {.cdecl, importc: "Py_UCS4_strncmp" dynlib: libraryString.}
+proc ucs4Strchr*(s: ptr Py_UCS4; c: Py_UCS4): ptr Py_UCS4 {.cdecl, importc: "Py_UCS4_strchr" dynlib: libraryString.}
+proc ucs4Strrchr*(s: ptr Py_UCS4; c: Py_UCS4): ptr Py_UCS4 {.cdecl, importc: "Py_UCS4_strrchr" dynlib: libraryString.}
 #Generic Codecs
-proc PyUnicode_Decode*(s: cstring; size: PySizeT; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsEncodedString*(unicode: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Encode*(s: PyUnicodePtr; size: PySizeT; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecode*(s: cstring; size: PySizeT; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_Decode" dynlib: libraryString.}
+proc unicodeAsEncodedString*(unicode: PyObjectPtr; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_AsEncodedString" dynlib: libraryString.}
+proc unicodeEncode*(s: PyUnicodePtr; size: PySizeT; encoding: cstring; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_Encode" dynlib: libraryString.}
 #UTF-8 Codecs
-proc PyUnicode_DecodeUTF8*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeUTF8Stateful*(s: cstring; size: PySizeT; errors: cstring; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUTF8String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUTF8AndSize*(unicode: PyObjectPtr; size: PySizeTPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUTF8*(unicode: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeUTF8*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeUTF8*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF8" dynlib: libraryString.}
+proc unicodeDecodeUTF8Stateful*(s: cstring; size: PySizeT; errors: cstring; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF8Stateful" dynlib: libraryString.}
+proc unicodeAsUTF8String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsUTF8String" dynlib: libraryString.}
+proc unicodeAsUTF8AndSize*(unicode: PyObjectPtr; size: PySizeTPtr): cstring {.cdecl, importc: "PyUnicode_AsUTF8AndSize" dynlib: libraryString.}
+proc unicodeAsUTF8*(unicode: PyObjectPtr): cstring {.cdecl, importc: "PyUnicode_AsUTF8" dynlib: libraryString.}
+proc unicodeEncodeUTF8*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeUTF8" dynlib: libraryString.}
 #UTF-32 Codecs
-proc PyUnicode_DecodeUTF32*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeUTF32Stateful*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUTF32String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeUTF32*(s: PyUnicodePtr; size: PySizeT; errors: cstring; byteorder: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeUTF32*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF32" dynlib: libraryString.}
+proc unicodeDecodeUTF32Stateful*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF32Stateful" dynlib: libraryString.}
+proc unicodeAsUTF32String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsUTF32String" dynlib: libraryString.}
+proc unicodeEncodeUTF32*(s: PyUnicodePtr; size: PySizeT; errors: cstring; byteorder: cint): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeUTF32" dynlib: libraryString.}
 #UTF-16 Codecs
-proc PyUnicode_DecodeUTF16*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeUTF16Stateful*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUTF16String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeUTF16*(s: PyUnicodePtr; size: PySizeT; errors: cstring; byteorder: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeUTF16*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF16" dynlib: libraryString.}
+proc unicodeDecodeUTF16Stateful*(s: cstring; size: PySizeT; errors: cstring; byteorder: ptr cint; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF16Stateful" dynlib: libraryString.}
+proc unicodeAsUTF16String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsUTF16String" dynlib: libraryString.}
+proc unicodeEncodeUTF16*(s: PyUnicodePtr; size: PySizeT; errors: cstring; byteorder: cint): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeUTF16" dynlib: libraryString.}
 #UTF-7 Codecs
-proc PyUnicode_DecodeUTF7*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeUTF7Stateful*(s: cstring; size: PySizeT; errors: cstring; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeUTF7*(s: PyUnicodePtr; size: PySizeT; base64SetO: cint; base64WhiteSpace: cint; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeUTF7*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF7" dynlib: libraryString.}
+proc unicodeDecodeUTF7Stateful*(s: cstring; size: PySizeT; errors: cstring; consumed: PySizeTPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUTF7Stateful" dynlib: libraryString.}
+proc unicodeEncodeUTF7*(s: PyUnicodePtr; size: PySizeT; base64SetO: cint; base64WhiteSpace: cint; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeUTF7" dynlib: libraryString.}
 #Unicode-Escape Codecs
-proc PyUnicode_DecodeUnicodeEscape*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsUnicodeEscapeString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeUnicodeEscape*(s: PyUnicodePtr; size: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeUnicodeEscape*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeUnicodeEscape" dynlib: libraryString.}
+proc unicodeAsUnicodeEscapeString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsUnicodeEscapeString" dynlib: libraryString.}
+proc unicodeEncodeUnicodeEscape*(s: PyUnicodePtr; size: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeUnicodeEscape" dynlib: libraryString.}
 #Raw-Unicode-Escape Codecs
-proc PyUnicode_DecodeRawUnicodeEscape*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsRawUnicodeEscapeString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeRawUnicodeEscape*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeRawUnicodeEscape*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeRawUnicodeEscape" dynlib: libraryString.}
+proc unicodeAsRawUnicodeEscapeString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsRawUnicodeEscapeString" dynlib: libraryString.}
+proc unicodeEncodeRawUnicodeEscape*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeRawUnicodeEscape" dynlib: libraryString.}
 #Latin-1 Codecs
-proc PyUnicode_DecodeLatin1*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsLatin1String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeLatin1*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeLatin1*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeLatin1" dynlib: libraryString.}
+proc unicodeAsLatin1String*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsLatin1String" dynlib: libraryString.}
+proc unicodeEncodeLatin1*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeLatin1" dynlib: libraryString.}
 #ASCII Codecs
-proc PyUnicode_DecodeASCII*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsASCIIString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeASCII*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeASCII*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeASCII" dynlib: libraryString.}
+proc unicodeAsASCIIString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsASCIIString" dynlib: libraryString.}
+proc unicodeEncodeASCII*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeASCII" dynlib: libraryString.}
 #Character Map Codecs
-proc PyUnicode_DecodeCharmap*(s: cstring; size: PySizeT; mapping: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsCharmapString*(unicode: PyObjectPtr; mapping: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_TranslateCharmap*(s: PyUnicodePtr; size: PySizeT; table: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeCharmap*(s: PyUnicodePtr; size: PySizeT; mapping: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeCharmap*(s: cstring; size: PySizeT; mapping: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeCharmap" dynlib: libraryString.}
+proc unicodeAsCharmapString*(unicode: PyObjectPtr; mapping: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsCharmapString" dynlib: libraryString.}
+proc unicodeTranslateCharmap*(s: PyUnicodePtr; size: PySizeT; table: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_TranslateCharmap" dynlib: libraryString.}
+proc unicodeEncodeCharmap*(s: PyUnicodePtr; size: PySizeT; mapping: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeCharmap" dynlib: libraryString.}
 #MBCS codecs for Windows
-proc PyUnicode_DecodeMBCS*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_DecodeMBCSStateful*(s: cstring; size: cint; errors: cstring; consumed: ptr cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_AsMBCSString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeCodePage*(code_page: cint; unicode: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_EncodeMBCS*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeDecodeMBCS*(s: cstring; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeMBCS" dynlib: libraryString.}
+proc unicodeDecodeMBCSStateful*(s: cstring; size: cint; errors: cstring; consumed: ptr cint): PyObjectPtr {.cdecl, importc: "PyUnicode_DecodeMBCSStateful" dynlib: libraryString.}
+proc unicodeAsMBCSString*(unicode: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_AsMBCSString" dynlib: libraryString.}
+proc unicodeEncodeCodePage*(code_page: cint; unicode: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeCodePage" dynlib: libraryString.}
+proc unicodeEncodeMBCS*(s: PyUnicodePtr; size: PySizeT; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_EncodeMBCS" dynlib: libraryString.}
 
 #Methods & Slots
-proc PyUnicode_Concat*(left: PyObjectPtr; right: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Split*(s: PyObjectPtr; sep: PyObjectPtr; maxsplit: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Splitlines*(s: PyObjectPtr; keepend: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Translate*(str: PyObjectPtr; table: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Join*(separator: PyObjectPtr; seq: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Tailmatch*(str: PyObjectPtr; substr: PyObjectPtr; start: PySizeT; `end`: PySizeT; direction: cint): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Find*(str: PyObjectPtr; substr: PyObjectPtr; start: PySizeT; `end`: PySizeT; direction: cint): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_FindChar*(str: PyObjectPtr; ch: Py_UCS4; start: PySizeT; `end`: PySizeT; direction: cint): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Count*(str: PyObjectPtr; substr: PyObjectPtr; start: PySizeT; `end`: PySizeT): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Replace*(str: PyObjectPtr; substr: PyObjectPtr; replstr: PyObjectPtr; maxcount: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Compare*(left: PyObjectPtr; right: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_CompareWithASCIIString*(uni: PyObjectPtr; string: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_RichCompare*(left: PyObjectPtr; right: PyObjectPtr; op: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Format*(format: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_Contains*(container: PyObjectPtr; element: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_InternInPlace*(string: ptr PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyUnicode_InternFromString*(v: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc unicodeConcat*(left: PyObjectPtr; right: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_Concat" dynlib: libraryString.}
+proc unicodeSplit*(s: PyObjectPtr; sep: PyObjectPtr; maxsplit: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_Split" dynlib: libraryString.}
+proc unicodeSplitlines*(s: PyObjectPtr; keepend: cint): PyObjectPtr {.cdecl, importc: "PyUnicode_Splitlines" dynlib: libraryString.}
+proc unicodeTranslate*(str: PyObjectPtr; table: PyObjectPtr; errors: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_Translate" dynlib: libraryString.}
+proc unicodeJoin*(separator: PyObjectPtr; seq: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_Join" dynlib: libraryString.}
+proc unicodeTailmatch*(str: PyObjectPtr; substr: PyObjectPtr; start: PySizeT; `end`: PySizeT; direction: cint): PySizeT {.cdecl, importc: "PyUnicode_Tailmatch" dynlib: libraryString.}
+proc unicodeFind*(str: PyObjectPtr; substr: PyObjectPtr; start: PySizeT; `end`: PySizeT; direction: cint): PySizeT {.cdecl, importc: "PyUnicode_Find" dynlib: libraryString.}
+proc unicodeFindChar*(str: PyObjectPtr; ch: Py_UCS4; start: PySizeT; `end`: PySizeT; direction: cint): PySizeT {.cdecl, importc: "PyUnicode_FindChar" dynlib: libraryString.}
+proc unicodeCount*(str: PyObjectPtr; substr: PyObjectPtr; start: PySizeT; `end`: PySizeT): PySizeT {.cdecl, importc: "PyUnicode_Count" dynlib: libraryString.}
+proc unicodeReplace*(str: PyObjectPtr; substr: PyObjectPtr; replstr: PyObjectPtr; maxcount: PySizeT): PyObjectPtr {.cdecl, importc: "PyUnicode_Replace" dynlib: libraryString.}
+proc unicodeCompare*(left: PyObjectPtr; right: PyObjectPtr): cint {.cdecl, importc: "PyUnicode_Compare" dynlib: libraryString.}
+proc unicodeCompareWithASCIIString*(uni: PyObjectPtr; string: cstring): cint {.cdecl, importc: "PyUnicode_CompareWithASCIIString" dynlib: libraryString.}
+proc unicodeRichCompare*(left: PyObjectPtr; right: PyObjectPtr; op: cint): PyObjectPtr {.cdecl, importc: "PyUnicode_RichCompare" dynlib: libraryString.}
+proc unicodeFormat*(format: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyUnicode_Format" dynlib: libraryString.}
+proc unicodeContains*(container: PyObjectPtr; element: PyObjectPtr): cint {.cdecl, importc: "PyUnicode_Contains" dynlib: libraryString.}
+proc unicodeInternInPlace*(string: ptr PyObjectPtr) {.cdecl, importc: "PyUnicode_InternInPlace" dynlib: libraryString.}
+proc unicodeInternFromString*(v: cstring): PyObjectPtr {.cdecl, importc: "PyUnicode_InternFromString" dynlib: libraryString.}
 
 #Tuple Objects
 type
@@ -1164,155 +1172,155 @@ type
     n_in_sequence*: cint
 
 var
-  PyTuple_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyTuple_Type"))
-  PyStructSequence_UnnamedField*: cstring = cast[cstring](dynlib.symAddr(libraryHandle, "PyStructSequence_UnnamedField"))
+  tupleType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyTuple_Type"))
+  structSequenceUnnamedField*: cstring = cast[cstring](dynlib.symAddr(libraryHandle, "PyStructSequence_UnnamedField"))
 
-proc PyTuple_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_New*(len: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_Pack*(n: PySizeT): PyObjectPtr {.varargs, cdecl, importc, dynlib: libraryString.}
-proc PyTuple_Size*(p: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_GET_SIZE*(p: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_GetItem*(p: PyObjectPtr; pos: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc tupleCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyTuple_Check" dynlib: libraryString.}
+proc tupleCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyTuple_CheckExact" dynlib: libraryString.}
+proc tupleNew*(len: PySizeT): PyObjectPtr {.cdecl, importc: "PyTuple_New" dynlib: libraryString.}
+proc tuplePack*(n: PySizeT): PyObjectPtr {.varargs, cdecl, importc: "PyTuple_Pack" dynlib: libraryString.}
+proc tupleSize*(p: PyObjectPtr): PySizeT {.cdecl, importc: "PyTuple_Size" dynlib: libraryString.}
+proc tupleGETSIZE*(p: PyObjectPtr): PySizeT {.cdecl, importc: "PyTuple_GET_SIZE" dynlib: libraryString.}
+proc tupleGetItem*(p: PyObjectPtr; pos: PySizeT): PyObjectPtr {.cdecl, importc: "PyTuple_GetItem" dynlib: libraryString.}
 #proc PyTuple_GET_ITEM*(p: PyObjectPtr; pos: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_GetSlice*(p: PyObjectPtr; low: PySizeT; high: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_SetItem*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc tupleGetSlice*(p: PyObjectPtr; low: PySizeT; high: PySizeT): PyObjectPtr {.cdecl, importc: "PyTuple_GetSlice" dynlib: libraryString.}
+proc tupleSetItem*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr): cint {.cdecl, importc: "PyTuple_SetItem" dynlib: libraryString.}
 #proc PyTuple_SET_ITEM*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyTuple_Resize*(p: ptr PyObjectPtr; newsize: PySizeT): cint {.cdecl, importc: "_PyTuple_Resize", dynlib: libraryString.}
-proc PyTuple_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyStructSequence_NewType*(desc: PyStructSequenceDescPtr): PyTypeObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyStructSequence_InitType*(typ: PyTypeObjectPtr; desc: PyStructSequenceDescPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyStructSequence_InitType2*(typ: PyTypeObjectPtr; desc: PyStructSequenceDescPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyStructSequence_New*(typ: PyTypeObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyStructSequence_GetItem*(p: PyObjectPtr; pos: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyStructSequence_SetItem*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
+proc tupleResize*(p: ptr PyObjectPtr; newsize: PySizeT): cint {.cdecl, importc: "_tupleResize", dynlib: libraryString.}
+proc tupleClearFreeList*(): cint {.cdecl, importc: "PyTuple_ClearFreeList" dynlib: libraryString.}
+proc structSequenceNewType*(desc: PyStructSequenceDescPtr): PyTypeObjectPtr {.cdecl, importc: "PyStructSequence_NewType" dynlib: libraryString.}
+proc structSequenceInitType*(typ: PyTypeObjectPtr; desc: PyStructSequenceDescPtr) {.cdecl, importc: "PyStructSequence_InitType" dynlib: libraryString.}
+proc structSequenceInitType2*(typ: PyTypeObjectPtr; desc: PyStructSequenceDescPtr): cint {.cdecl, importc: "PyStructSequence_InitType2" dynlib: libraryString.}
+proc structSequenceNew*(typ: PyTypeObjectPtr): PyObjectPtr {.cdecl, importc: "PyStructSequence_New" dynlib: libraryString.}
+proc structSequenceGetItem*(p: PyObjectPtr; pos: PySizeT): PyObjectPtr {.cdecl, importc: "PyStructSequence_GetItem" dynlib: libraryString.}
+proc structSequenceSetItem*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr) {.cdecl, importc: "PyStructSequence_SetItem" dynlib: libraryString.}
 
 #List Objects
-var PyList_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyList_Type"))
+var listType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyList_Type"))
 
-proc PyList_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_New*(len: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyList_Size*(list: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyList_GET_SIZE*(list: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyList_GetItem*(list: PyObjectPtr; index: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyList_GET_ITEM*(list: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyList_SetItem*(list: PyObjectPtr; index: PySizeT; item: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_SET_ITEM*(list: PyObjectPtr; i: PySizeT; o: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyList_Insert*(list: PyObjectPtr; index: PySizeT; item: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_Append*(list: PyObjectPtr; item: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_GetSlice*(list: PyObjectPtr; low: PySizeT; high: PySizeT): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyList_SetSlice*(list: PyObjectPtr; low: PySizeT; high: PySizeT; itemlist: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_Sort*(list: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_Reverse*(list: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyList_AsTuple*(list: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyList_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc listCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyList_Check" dynlib: libraryString.}
+proc listCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyList_CheckExact" dynlib: libraryString.}
+proc listNew*(len: PySizeT): PyObjectPtr {.cdecl, importc: "PyList_New" dynlib: libraryString.}
+proc listSize*(list: PyObjectPtr): PySizeT {.cdecl, importc: "PyList_Size" dynlib: libraryString.}
+proc listGETSIZE*(list: PyObjectPtr): PySizeT {.cdecl, importc: "PyList_GET_SIZE" dynlib: libraryString.}
+proc listGetItem*(list: PyObjectPtr; index: PySizeT): PyObjectPtr {.cdecl, importc: "PyList_GetItem" dynlib: libraryString.}
+proc listGETITEM*(list: PyObjectPtr; i: PySizeT): PyObjectPtr {.cdecl, importc: "PyList_GET_ITEM" dynlib: libraryString.}
+proc listSetItem*(list: PyObjectPtr; index: PySizeT; item: PyObjectPtr): cint {.cdecl, importc: "PyList_SetItem" dynlib: libraryString.}
+proc listSETITEM*(list: PyObjectPtr; i: PySizeT; o: PyObjectPtr) {.cdecl, importc: "PyList_SET_ITEM" dynlib: libraryString.}
+proc listInsert*(list: PyObjectPtr; index: PySizeT; item: PyObjectPtr): cint {.cdecl, importc: "PyList_Insert" dynlib: libraryString.}
+proc listAppend*(list: PyObjectPtr; item: PyObjectPtr): cint {.cdecl, importc: "PyList_Append" dynlib: libraryString.}
+proc listGetSlice*(list: PyObjectPtr; low: PySizeT; high: PySizeT): PyObjectPtr {.cdecl, importc: "PyList_GetSlice" dynlib: libraryString.}
+proc listSetSlice*(list: PyObjectPtr; low: PySizeT; high: PySizeT; itemlist: PyObjectPtr): cint {.cdecl, importc: "PyList_SetSlice" dynlib: libraryString.}
+proc listSort*(list: PyObjectPtr): cint {.cdecl, importc: "PyList_Sort" dynlib: libraryString.}
+proc listReverse*(list: PyObjectPtr): cint {.cdecl, importc: "PyList_Reverse" dynlib: libraryString.}
+proc listAsTuple*(list: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyList_AsTuple" dynlib: libraryString.}
+proc listClearFreeList*(): cint {.cdecl, importc: "PyList_ClearFreeList" dynlib: libraryString.}
 
 #Dictionary Objects
-var PyDict_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyDict_Type"))
+var dictType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyDict_Type"))
 
-proc PyDict_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_New*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDictProxy_New*(mapping: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Clear*(p: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Contains*(p: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Copy*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_SetItem*(p: PyObjectPtr; key: PyObjectPtr; val: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_SetItemString*(p: PyObjectPtr; key: cstring; val: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_DelItem*(p: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_DelItemString*(p: PyObjectPtr; key: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_GetItem*(p: PyObjectPtr; key: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_GetItemWithError*(p: PyObjectPtr; key: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_GetItemString*(p: PyObjectPtr; key: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_SetDefault*(p: PyObjectPtr; key: PyObjectPtr; default: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Items*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Keys*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Values*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Size*(p: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Next*(p: PyObjectPtr; ppos: PySizeTPtr; pkey: ptr PyObjectPtr; pvalue: ptr PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Merge*(a: PyObjectPtr; b: PyObjectPtr; override: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_Update*(a: PyObjectPtr; b: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_MergeFromSeq2*(a: PyObjectPtr; seq2: PyObjectPtr; override: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDict_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc dictCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyDict_Check" dynlib: libraryString.}
+proc dictCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyDict_CheckExact" dynlib: libraryString.}
+proc dictNew*(): PyObjectPtr {.cdecl, importc: "PyDict_New" dynlib: libraryString.}
+proc dictProxyNew*(mapping: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDictProxy_New" dynlib: libraryString.}
+proc dictClear*(p: PyObjectPtr) {.cdecl, importc: "PyDict_Clear" dynlib: libraryString.}
+proc dictContains*(p: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PyDict_Contains" dynlib: libraryString.}
+proc dictCopy*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_Copy" dynlib: libraryString.}
+proc dictSetItem*(p: PyObjectPtr; key: PyObjectPtr; val: PyObjectPtr): cint {.cdecl, importc: "PyDict_SetItem" dynlib: libraryString.}
+proc dictSetItemString*(p: PyObjectPtr; key: cstring; val: PyObjectPtr): cint {.cdecl, importc: "PyDict_SetItemString" dynlib: libraryString.}
+proc dictDelItem*(p: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PyDict_DelItem" dynlib: libraryString.}
+proc dictDelItemString*(p: PyObjectPtr; key: cstring): cint {.cdecl, importc: "PyDict_DelItemString" dynlib: libraryString.}
+proc dictGetItem*(p: PyObjectPtr; key: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_GetItem" dynlib: libraryString.}
+proc dictGetItemWithError*(p: PyObjectPtr; key: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_GetItemWithError" dynlib: libraryString.}
+proc dictGetItemString*(p: PyObjectPtr; key: cstring): PyObjectPtr {.cdecl, importc: "PyDict_GetItemString" dynlib: libraryString.}
+proc dictSetDefault*(p: PyObjectPtr; key: PyObjectPtr; default: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_SetDefault" dynlib: libraryString.}
+proc dictItems*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_Items" dynlib: libraryString.}
+proc dictKeys*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_Keys" dynlib: libraryString.}
+proc dictValues*(p: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDict_Values" dynlib: libraryString.}
+proc dictSize*(p: PyObjectPtr): PySizeT {.cdecl, importc: "PyDict_Size" dynlib: libraryString.}
+proc dictNext*(p: PyObjectPtr; ppos: PySizeTPtr; pkey: ptr PyObjectPtr; pvalue: ptr PyObjectPtr): cint {.cdecl, importc: "PyDict_Next" dynlib: libraryString.}
+proc dictMerge*(a: PyObjectPtr; b: PyObjectPtr; override: cint): cint {.cdecl, importc: "PyDict_Merge" dynlib: libraryString.}
+proc dictUpdate*(a: PyObjectPtr; b: PyObjectPtr): cint {.cdecl, importc: "PyDict_Update" dynlib: libraryString.}
+proc dictMergeFromSeq2*(a: PyObjectPtr; seq2: PyObjectPtr; override: cint): cint {.cdecl, importc: "PyDict_MergeFromSeq2" dynlib: libraryString.}
+proc dictClearFreeList*(): cint {.cdecl, importc: "PyDict_ClearFreeList" dynlib: libraryString.}
 
 #Set Objects
-var PySet_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySet_Type"))
+var setType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySet_Type"))
 
-proc PySet_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFrozenSet_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyAnySet_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyAnySet_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFrozenSet_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySet_New*(iterable: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFrozenSet_New*(iterable: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySet_Size*(anyset: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PySet_GET_SIZE*(anyset: PyObjectPtr): PySizeT {.cdecl, importc, dynlib: libraryString.}
-proc PySet_Contains*(anyset: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySet_Add*(set: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySet_Discard*(set: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySet_Pop*(set: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySet_Clear*(set: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySet_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc setCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PySet_Check" dynlib: libraryString.}
+proc frozenSetCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyFrozenSet_Check" dynlib: libraryString.}
+proc anySetCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyAnySet_Check" dynlib: libraryString.}
+proc anySetCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyAnySet_CheckExact" dynlib: libraryString.}
+proc frozenSetCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyFrozenSet_CheckExact" dynlib: libraryString.}
+proc setNew*(iterable: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySet_New" dynlib: libraryString.}
+proc frozenSetNew*(iterable: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFrozenSet_New" dynlib: libraryString.}
+proc setSize*(anyset: PyObjectPtr): PySizeT {.cdecl, importc: "PySet_Size" dynlib: libraryString.}
+proc setGETSIZE*(anyset: PyObjectPtr): PySizeT {.cdecl, importc: "PySet_GET_SIZE" dynlib: libraryString.}
+proc setContains*(anyset: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PySet_Contains" dynlib: libraryString.}
+proc setAdd*(set: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PySet_Add" dynlib: libraryString.}
+proc setDiscard*(set: PyObjectPtr; key: PyObjectPtr): cint {.cdecl, importc: "PySet_Discard" dynlib: libraryString.}
+proc setPop*(set: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySet_Pop" dynlib: libraryString.}
+proc setClear*(set: PyObjectPtr): cint {.cdecl, importc: "PySet_Clear" dynlib: libraryString.}
+proc setClearFreeList*(): cint {.cdecl, importc: "PySet_ClearFreeList" dynlib: libraryString.}
 
 #Function Objects
-var PyFunction_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyFunction_Type"))
+var functionType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyFunction_Type"))
 
-proc PyFunction_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_New*(code: PyObjectPtr; globals: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_NewWithQualName*(code: PyObjectPtr; globals: PyObjectPtr; qualname: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_GetCode*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_GetGlobals*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_GetModule*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_GetDefaults*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_SetDefaults*(op: PyObjectPtr; defaults: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_GetClosure*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_SetClosure*(op: PyObjectPtr; closure: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_GetAnnotations*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFunction_SetAnnotations*(op: PyObjectPtr; annotations: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc functionCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyFunction_Check" dynlib: libraryString.}
+proc functionNew*(code: PyObjectPtr; globals: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_New" dynlib: libraryString.}
+proc functionNewWithQualName*(code: PyObjectPtr; globals: PyObjectPtr; qualname: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_NewWithQualName" dynlib: libraryString.}
+proc functionGetCode*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_GetCode" dynlib: libraryString.}
+proc functionGetGlobals*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_GetGlobals" dynlib: libraryString.}
+proc functionGetModule*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_GetModule" dynlib: libraryString.}
+proc functionGetDefaults*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_GetDefaults" dynlib: libraryString.}
+proc functionSetDefaults*(op: PyObjectPtr; defaults: PyObjectPtr): cint {.cdecl, importc: "PyFunction_SetDefaults" dynlib: libraryString.}
+proc functionGetClosure*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_GetClosure" dynlib: libraryString.}
+proc functionSetClosure*(op: PyObjectPtr; closure: PyObjectPtr): cint {.cdecl, importc: "PyFunction_SetClosure" dynlib: libraryString.}
+proc functionGetAnnotations*(op: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyFunction_GetAnnotations" dynlib: libraryString.}
+proc functionSetAnnotations*(op: PyObjectPtr; annotations: PyObjectPtr): cint {.cdecl, importc: "PyFunction_SetAnnotations" dynlib: libraryString.}
 
 #Instance Method Objects
-var PyInstanceMethod_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyInstanceMethod_Type"))
+var instanceMethodType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyInstanceMethod_Type"))
 
-proc PyInstanceMethod_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyInstanceMethod_New*(fun: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyInstanceMethod_Function*(im: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyInstanceMethod_GET_FUNCTION*(im: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc instanceMethodCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyInstanceMethod_Check" dynlib: libraryString.}
+proc instanceMethodNew*(fun: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyInstanceMethod_New" dynlib: libraryString.}
+proc instanceMethodFunction*(im: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyInstanceMethod_Function" dynlib: libraryString.}
+proc instanceMethodGETFUNCTION*(im: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyInstanceMethod_GET_FUNCTION" dynlib: libraryString.}
 
 #Method Objects
-var PyMethod_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyMethod_Type"))
+var methodType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyMethod_Type"))
 
-proc PyMethod_Check*(o: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyMethod_New*(fun: PyObjectPtr; self: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMethod_Function*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMethod_GET_FUNCTION*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMethod_Self*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMethod_GET_SELF*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMethod_ClearFreeList*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc methodCheck*(o: PyObjectPtr): cint {.cdecl, importc: "PyMethod_Check" dynlib: libraryString.}
+proc methodNew*(fun: PyObjectPtr; self: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMethod_New" dynlib: libraryString.}
+proc methodFunction*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMethod_Function" dynlib: libraryString.}
+proc methodGetFunction*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMethod_GET_FUNCTION" dynlib: libraryString.}
+proc methodSelf*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMethod_Self" dynlib: libraryString.}
+proc methodGetSelf*(meth: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMethod_GET_SELF" dynlib: libraryString.}
+proc methodClearFreeList*(): cint {.cdecl, importc: "PyMethod_ClearFreeList" dynlib: libraryString.}
 
 #Cell Objects
-var PyCell_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCell_Type"))
+var cellType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCell_Type"))
 
-proc PyCell_Check*(ob: pointer): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCell_New*(ob: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCell_Get*(cell: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc cellCheck*(ob: pointer): cint {.cdecl, importc: "PyCell_Check" dynlib: libraryString.}
+proc cellNew*(ob: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCell_New" dynlib: libraryString.}
+proc cellGet*(cell: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCell_Get" dynlib: libraryString.}
 #proc PyCell_GET*(cell: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCell_Set*(cell: PyObjectPtr; value: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc cellSet*(cell: PyObjectPtr; value: PyObjectPtr): cint {.cdecl, importc: "PyCell_Set" dynlib: libraryString.}
 #proc PyCell_SET*(cell: PyObjectPtr; value: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
 
 #Code Objects
-var PyCode_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCode_Type"))
+var codeType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCode_Type"))
 
-proc PyCode_Check*(co: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCode_GetNumFree*(co: ptr PyCodeObject): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCode_New*(argcount: cint; kwonlyargcount: cint; nlocals: cint; stacksize: cint; flags: cint; code: PyObjectPtr; consts: PyObjectPtr; names: PyObjectPtr; varnames: PyObjectPtr; freevars: PyObjectPtr; cellvars: PyObjectPtr; filename: PyObjectPtr; name: PyObjectPtr; firstlineno: cint; lnotab: PyObjectPtr): ptr PyCodeObject {.cdecl, importc, dynlib: libraryString.}
-proc PyCode_NewEmpty*(filename: cstring; funcname: cstring; firstlineno: cint): ptr PyCodeObject {.cdecl, importc, dynlib: libraryString.}
+proc codeCheck*(co: PyObjectPtr): cint {.cdecl, importc: "PyCode_Check" dynlib: libraryString.}
+proc codeGetNumFree*(co: ptr PyCodeObject): cint {.cdecl, importc: "PyCode_GetNumFree" dynlib: libraryString.}
+proc codeNew*(argcount: cint; kwonlyargcount: cint; nlocals: cint; stacksize: cint; flags: cint; code: PyObjectPtr; consts: PyObjectPtr; names: PyObjectPtr; varnames: PyObjectPtr; freevars: PyObjectPtr; cellvars: PyObjectPtr; filename: PyObjectPtr; name: PyObjectPtr; firstlineno: cint; lnotab: PyObjectPtr): ptr PyCodeObject {.cdecl, importc: "PyCode_New" dynlib: libraryString.}
+proc codeNewEmpty*(filename: cstring; funcname: cstring; firstlineno: cint): ptr PyCodeObject {.cdecl, importc: "PyCode_NewEmpty" dynlib: libraryString.}
 
 #File Objects
-proc PyObject_AsFileDescriptor*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFile_GetLine*(p: PyObjectPtr; n: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyFile_WriteObject*(obj: PyObjectPtr; p: PyObjectPtr; flags: cint): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyFile_WriteString*(s: cstring; p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc objectAsFileDescriptor*(p: PyObjectPtr): cint {.cdecl, importc: "PyObject_AsFileDescriptor" dynlib: libraryString.}
+proc fileGetLine*(p: PyObjectPtr; n: cint): PyObjectPtr {.cdecl, importc: "PyFile_GetLine" dynlib: libraryString.}
+proc fileWriteObject*(obj: PyObjectPtr; p: PyObjectPtr; flags: cint): cint {.cdecl, importc: "PyFile_WriteObject" dynlib: libraryString.}
+proc fileWriteString*(s: cstring; p: PyObjectPtr): cint {.cdecl, importc: "PyFile_WriteString" dynlib: libraryString.}
 
 #Module Objects
 type
@@ -1335,45 +1343,45 @@ type
     m_clear*: Inquiry
     m_free*: FreeFunc
     
-var PyModule_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyModule_Type"))
+var moduleType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyModule_Type"))
 
-proc PyModule_Check*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_NewObject*(name: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_New*(name: cstring): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetDict*(module: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetNameObject*(module: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetName*(module: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetFilenameObject*(module: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetFilename*(module: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetState*(module: PyObjectPtr): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_GetDef*(module: PyObjectPtr): PyModuleDefPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyState_FindModule*(def: PyModuleDefPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyState_AddModule*(module: PyObjectPtr; def: PyModuleDefPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyState_RemoveModule*(def: PyModuleDefPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_Create2*(module: PyModuleDefPtr; module_api_version: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_Create*(module: PyModuleDefPtr): PyObjectPtr =
-  result = PyModule_Create2(module, PYTHON_API_VERSION)
-proc PyModule_AddObject*(module: PyObjectPtr; name: cstring; value: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_AddIntConstant*(module: PyObjectPtr; name: cstring; value: clong): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyModule_AddStringConstant*(module: PyObjectPtr; name: cstring; value: cstring): cint {.cdecl, importc, dynlib: libraryString.}
+proc moduleCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyModule_Check" dynlib: libraryString.}
+proc moduleCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyModule_CheckExact" dynlib: libraryString.}
+proc moduleNewObject*(name: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyModule_NewObject" dynlib: libraryString.}
+proc moduleNew*(name: cstring): PyObjectPtr {.cdecl, importc: "PyModule_New" dynlib: libraryString.}
+proc moduleGetDict*(module: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyModule_GetDict" dynlib: libraryString.}
+proc moduleGetNameObject*(module: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyModule_GetNameObject" dynlib: libraryString.}
+proc moduleGetName*(module: PyObjectPtr): cstring {.cdecl, importc: "PyModule_GetName" dynlib: libraryString.}
+proc moduleGetFilenameObject*(module: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyModule_GetFilenameObject" dynlib: libraryString.}
+proc moduleGetFilename*(module: PyObjectPtr): cstring {.cdecl, importc: "PyModule_GetFilename" dynlib: libraryString.}
+proc moduleGetState*(module: PyObjectPtr): pointer {.cdecl, importc: "PyModule_GetState" dynlib: libraryString.}
+proc moduleGetDef*(module: PyObjectPtr): PyModuleDefPtr {.cdecl, importc: "PyModule_GetDef" dynlib: libraryString.}
+proc stateFindModule*(def: PyModuleDefPtr): PyObjectPtr {.cdecl, importc: "PyState_FindModule" dynlib: libraryString.}
+proc stateAddModule*(module: PyObjectPtr; def: PyModuleDefPtr): cint {.cdecl, importc: "PyState_AddModule" dynlib: libraryString.}
+proc stateRemoveModule*(def: PyModuleDefPtr): cint {.cdecl, importc: "PyState_RemoveModule" dynlib: libraryString.}
+proc moduleCreate2*(module: PyModuleDefPtr; module_api_version: cint): PyObjectPtr {.cdecl, importc: "PyModule_Create2" dynlib: libraryString.}
+proc moduleCreate*(module: PyModuleDefPtr): PyObjectPtr =
+  result = moduleCreate2(module, PYTHON_API_VERSION)
+proc moduleAddObject*(module: PyObjectPtr; name: cstring; value: PyObjectPtr): cint {.cdecl, importc: "PyModule_AddObject" dynlib: libraryString.}
+proc moduleAddIntConstant*(module: PyObjectPtr; name: cstring; value: clong): cint {.cdecl, importc: "PyModule_AddIntConstant" dynlib: libraryString.}
+proc moduleAddStringConstant*(module: PyObjectPtr; name: cstring; value: cstring): cint {.cdecl, importc: "PyModule_AddStringConstant" dynlib: libraryString.}
 #proc PyModule_AddIntMacro*(module: PyObjectPtr; a3: `macro`): cint {.cdecl, importc, dynlib: libraryString.}
 #proc PyModule_AddStringMacro*(module: PyObjectPtr; a3: `macro`): cint {.cdecl, importc, dynlib: libraryString.}
 
 #Iterator Objects
 var
-  PySeqIter_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySeqIter_Type"))
-  PyCallIter_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCallIter_Type"))
+  seqIterType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySeqIter_Type"))
+  callIterType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCallIter_Type"))
 
-template Py_REFCNT*(ob): expr = cast[PyObjectPtr](ob).ob_refcnt
-template Py_TYPE*(ob): expr = cast[PyObjectPtr](ob).ob_type
-template Py_SIZE*(ob): expr = cast[PyObjectPtr](ob).ob_size
+template refcnt*(ob): expr = cast[PyObjectPtr](ob).obRefcnt
+template pyType*(ob): expr = cast[PyObjectPtr](ob).obType
+template size*(ob): expr = cast[PyObjectPtr](ob).obSize
 # #define PyCallIter_Check(op) (Py_TYPE(op) == &PyCallIter_Type)
-template PyCallIter_Check*(op): expr = Py_TYPE(op) == addr(PyCallIter_Type)
+template callIterCheck*(op): expr = Py_TYPE(op) == addr(callIterType)
 # #define PySeqIter_Check(op) (Py_TYPE(op) == &PySeqIter_Type)
-template PySeqIter_Check*(op): expr = Py_TYPE(op) == addr(PySeqIter_Type)
-proc PySeqIter_New*(seq: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCallIter_New*(callable: PyObjectPtr; sentinel: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+template seqIterCheck*(op): expr = Py_TYPE(op) == addr(seqIterType)
+proc seqIterNew*(seq: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySeqIter_New" dynlib: libraryString.}
+proc callIterNew*(callable: PyObjectPtr; sentinel: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyCallIter_New" dynlib: libraryString.}
 
 #Descriptor Objects
 type 
@@ -1386,94 +1394,94 @@ type
     wrapper*: WrapperFunc
     doc*: cstring
     flags*: cint
-    name_strobj*: PyObjectPtr
+    nameStrobj*: PyObjectPtr
 
-var PyProperty_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyProperty_Type"))
+var propertyType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyProperty_Type"))
 
-proc PyDescr_NewGetSet*(typ: PyTypeObjectPtr; getset: PyGetSetDefPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDescr_NewMember*(typ: PyTypeObjectPtr; meth: PyMemberDefPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDescr_NewMethod*(typ: PyTypeObjectPtr; meth: PyMethodDefPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDescr_NewWrapper*(typ: PyTypeObjectPtr; wrapper: WrapperBasePtr; wrapped: pointer): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDescr_NewClassMethod*(typ: PyTypeObjectPtr; meth: PyMethodDefPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDescr_IsData*(descr: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyWrapper_New*(arg0: PyObjectPtr; arg1: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc descrNewGetSet*(typ: PyTypeObjectPtr; getset: PyGetSetDefPtr): PyObjectPtr {.cdecl, importc: "PyDescr_NewGetSet" dynlib: libraryString.}
+proc descrNewMember*(typ: PyTypeObjectPtr; meth: PyMemberDefPtr): PyObjectPtr {.cdecl, importc: "PyDescr_NewMember" dynlib: libraryString.}
+proc descrNewMethod*(typ: PyTypeObjectPtr; meth: PyMethodDefPtr): PyObjectPtr {.cdecl, importc: "PyDescr_NewMethod" dynlib: libraryString.}
+proc descrNewWrapper*(typ: PyTypeObjectPtr; wrapper: WrapperBasePtr; wrapped: pointer): PyObjectPtr {.cdecl, importc: "PyDescr_NewWrapper" dynlib: libraryString.}
+proc descrNewClassMethod*(typ: PyTypeObjectPtr; meth: PyMethodDefPtr): PyObjectPtr {.cdecl, importc: "PyDescr_NewClassMethod" dynlib: libraryString.}
+proc descrIsData*(descr: PyObjectPtr): cint {.cdecl, importc: "PyDescr_IsData" dynlib: libraryString.}
+proc wrapperNew*(arg0: PyObjectPtr; arg1: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyWrapper_New" dynlib: libraryString.}
 
 #Slice Objects
-var PySlice_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySlice_Type"))
+var sliceType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PySlice_Type"))
 
-proc PySlice_Check*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySlice_New*(start: PyObjectPtr; stop: PyObjectPtr; step: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PySlice_GetIndices*(slice: PyObjectPtr; length: PySizeT; start: PySizeTPtr; stop: PySizeTPtr; step: PySizeTPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PySlice_GetIndicesEx*(slice: PyObjectPtr; length: PySizeT; start: PySizeTPtr; stop: PySizeTPtr; step: PySizeTPtr; slicelength: PySizeTPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc sliceCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PySlice_Check" dynlib: libraryString.}
+proc sliceNew*(start: PyObjectPtr; stop: PyObjectPtr; step: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PySlice_New" dynlib: libraryString.}
+proc sliceGetIndices*(slice: PyObjectPtr; length: PySizeT; start: PySizeTPtr; stop: PySizeTPtr; step: PySizeTPtr): cint {.cdecl, importc: "PySlice_GetIndices" dynlib: libraryString.}
+proc sliceGetIndicesEx*(slice: PyObjectPtr; length: PySizeT; start: PySizeTPtr; stop: PySizeTPtr; step: PySizeTPtr; slicelength: PySizeTPtr): cint {.cdecl, importc: "PySlice_GetIndicesEx" dynlib: libraryString.}
 
 #MemoryView objects
-proc PyMemoryView_FromObject*(obj: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMemoryView_FromMemory*(mem: cstring; size: PySizeT; flags: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMemoryView_FromBuffer*(view: PyBufferPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMemoryView_GetContiguous*(obj: PyObjectPtr; buffertype: cint; order: char): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyMemoryView_Check*(obj: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
+proc memoryViewFromObject*(obj: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyMemoryView_FromObject" dynlib: libraryString.}
+proc memoryViewFromMemory*(mem: cstring; size: PySizeT; flags: cint): PyObjectPtr {.cdecl, importc: "PyMemoryView_FromMemory" dynlib: libraryString.}
+proc memoryViewFromBuffer*(view: PyBufferPtr): PyObjectPtr {.cdecl, importc: "PyMemoryView_FromBuffer" dynlib: libraryString.}
+proc memoryViewGetContiguous*(obj: PyObjectPtr; buffertype: cint; order: char): PyObjectPtr {.cdecl, importc: "PyMemoryView_GetContiguous" dynlib: libraryString.}
+proc memoryViewCheck*(obj: PyObjectPtr): cint {.cdecl, importc: "PyMemoryView_Check" dynlib: libraryString.}
 #proc PyMemoryView_GET_BUFFER*(mview: PyObjectPtr): PyBufferPtr {.cdecl, importc, dynlib: libraryString.}
 #proc PyMemoryView_GET_BASE*(mview: PyObjectPtr): PyBufferPtr {.cdecl, importc, dynlib: libraryString.}
 
 #Weak Reference Objects
 var
-  PyWeakref_RefType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "_PyWeakref_RefType"))
-  PyWeakref_ProxyType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "_PyWeakref_ProxyType"))
-  PyWeakref_CallableProxyType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "_PyWeakref_CallableProxyType"))
+  weakrefRefType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "_PyWeakref_RefType"))
+  weakrefProxyType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "_PyWeakref_ProxyType"))
+  weakrefCallableProxyType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "_PyWeakref_CallableProxyType"))
 
 # #define PyWeakref_CheckRef(op) PyObject_TypeCheck(op, &_PyWeakref_RefType)
-template PyWeakref_CheckRef*(op): cint = PyObject_TypeCheck(op, addr(PyWeakref_RefType))
+template weakrefCheckRef*(op): cint = PyObject_TypeCheck(op, addr(weakrefRefType))
 # #define PyWeakref_CheckProxy(op) ((Py_TYPE(op) == &_PyWeakref_ProxyType) || (Py_TYPE(op) == &_PyWeakref_CallableProxyType))
-template PyWeakref_CheckProxy*(op): cint = (Py_TYPE(op) == addr(PyWeakref_ProxyType)) or (Py_TYPE(op) == addr(PyWeakref_CallableProxyType))
+template weakrefCheckProxy*(op): cint = (pyType(op) == addr(weakrefProxyType)) or (pyType(op) == addr(weakrefCallableProxyType))
 # #define PyWeakref_Check(op) (PyWeakref_CheckRef(op) || PyWeakref_CheckProxy(op))
-template PyWeakref_Check*(ob): expr = PyWeakref_CheckRef(op) or PyWeakref_CheckProxy(op)
-proc PyWeakref_NewRef*(ob: PyObjectPtr; callback: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyWeakref_NewProxy*(ob: PyObjectPtr; callback: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyWeakref_GetObject*(rf: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+template weakrefCheck*(ob): expr = weakrefCheckRef(op) or weakrefCheckProxy(op)
+proc weakrefNewRef*(ob: PyObjectPtr; callback: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyWeakref_NewRef" dynlib: libraryString.}
+proc weakrefNewProxy*(ob: PyObjectPtr; callback: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyWeakref_NewProxy" dynlib: libraryString.}
+proc weakrefGetObject*(rf: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyWeakref_GetObject" dynlib: libraryString.}
 #proc PyWeakref_GET_OBJECT*(rf: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
 
 #Capsules
-var PyCapsule_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCapsule_Type"))
+var capsuleType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyCapsule_Type"))
 
 type 
   PyCapsuleDestructor* = proc (arg: PyObjectPtr) {.cdecl.}
 
-proc PyCapsule_CheckExact*(p: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_New*(pointer: pointer; name: cstring; destructor: PyCapsuleDestructor): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_GetPointer*(capsule: PyObjectPtr; name: cstring): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_GetDestructor*(capsule: PyObjectPtr): PyCapsuleDestructor {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_GetContext*(capsule: PyObjectPtr): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_GetName*(capsule: PyObjectPtr): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_Import*(name: cstring; no_block: cint): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_IsValid*(capsule: PyObjectPtr; name: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_SetContext*(capsule: PyObjectPtr; context: pointer): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_SetDestructor*(capsule: PyObjectPtr; destructor: PyCapsuleDestructor): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_SetName*(capsule: PyObjectPtr; name: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyCapsule_SetPointer*(capsule: PyObjectPtr; pointer: pointer): cint {.cdecl, importc, dynlib: libraryString.}
+proc capsuleCheckExact*(p: PyObjectPtr): cint {.cdecl, importc: "PyCapsule_CheckExact" dynlib: libraryString.}
+proc capsuleNew*(pointer: pointer; name: cstring; destructor: PyCapsuleDestructor): PyObjectPtr {.cdecl, importc: "PyCapsule_New" dynlib: libraryString.}
+proc capsuleGetPointer*(capsule: PyObjectPtr; name: cstring): pointer {.cdecl, importc: "PyCapsule_GetPointer" dynlib: libraryString.}
+proc capsuleGetDestructor*(capsule: PyObjectPtr): PyCapsuleDestructor {.cdecl, importc: "PyCapsule_GetDestructor" dynlib: libraryString.}
+proc capsuleGetContext*(capsule: PyObjectPtr): pointer {.cdecl, importc: "PyCapsule_GetContext" dynlib: libraryString.}
+proc capsuleGetName*(capsule: PyObjectPtr): cstring {.cdecl, importc: "PyCapsule_GetName" dynlib: libraryString.}
+proc capsuleImport*(name: cstring; no_block: cint): pointer {.cdecl, importc: "PyCapsule_Import" dynlib: libraryString.}
+proc capsuleIsValid*(capsule: PyObjectPtr; name: cstring): cint {.cdecl, importc: "PyCapsule_IsValid" dynlib: libraryString.}
+proc capsuleSetContext*(capsule: PyObjectPtr; context: pointer): cint {.cdecl, importc: "PyCapsule_SetContext" dynlib: libraryString.}
+proc capsuleSetDestructor*(capsule: PyObjectPtr; destructor: PyCapsuleDestructor): cint {.cdecl, importc: "PyCapsule_SetDestructor" dynlib: libraryString.}
+proc capsuleSetName*(capsule: PyObjectPtr; name: cstring): cint {.cdecl, importc: "PyCapsule_SetName" dynlib: libraryString.}
+proc capsuleSetPointer*(capsule: PyObjectPtr; pointer: pointer): cint {.cdecl, importc: "PyCapsule_SetPointer" dynlib: libraryString.}
 
 #Generator Objects
 type 
   Frame* = object 
   PyGenObject* = object 
-    ob_base*: PyVarObject
-    gi_frame*: ptr Frame
-    gi_running*: char
-    gi_code*: PyObjectPtr
-    gi_weakreflist*: PyObjectPtr
+    obBase*: PyVarObject
+    giFrame*: ptr Frame
+    giRunning*: char
+    giCode*: PyObjectPtr
+    giWeakreflist*: PyObjectPtr
 
-var PyGen_Type*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyGen_Type"))
+var genType*: PyTypeObject = cast[PyTypeObject](dynlib.symAddr(libraryHandle, "PyGen_Type"))
 
 # #define PyGen_Check(op) PyObject_TypeCheck(op, &PyGen_Type)
-template PyGen_Check*(op): cint = PyObject_TypeCheck(op, addr(PyGen_Type))
+template genCheck*(op): cint = objectTypeCheck(op, addr(genType))
 # #define PyGen_CheckExact(op) (Py_TYPE(op) == &PyGen_Type)
-template PyGen_CheckExact*(op): cint = Py_TYPE(op) == addr(PyGen_Type)
-proc PyGen_New*(frame: PyFrameObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+template genCheckExact*(op): cint = pyType(op) == addr(genType)
+proc genNew*(frame: PyFrameObjectPtr): PyObjectPtr {.cdecl, importc: "PyGen_New" dynlib: libraryString.}
 
 #DateTime Objects
 const 
-  PyDateTime_DATE_DATASIZE* = 4 # number of bytes for year, month, and day. 
-  PyDateTime_TIME_DATASIZE* = 6 # number of bytes for hour, minute, second, and usecond.
-  PyDateTime_DATETIME_DATASIZE* = 10 # number of bytes for year, month, day, hour, minute, second, and usecond. 
+  datetimeDateDataSize* = 4 # number of bytes for year, month, and day. 
+  datetimeTimeDataSize* = 6 # number of bytes for hour, minute, second, and usecond.
+  datetimeDateTimeDataSize* = 10 # number of bytes for year, month, day, hour, minute, second, and usecond. 
 
 type 
   PyDateTime_TimePtr* = ptr PyDateTime_Time
@@ -1484,35 +1492,35 @@ type
     hashcode*: PyHashT
     hastzinfo*: int8
     # _PyTZINFO_HEAD
-    data*: array[PyDateTime_TIME_DATASIZE, cuchar]
+    data*: array[datetimeTimeDataSize, cuchar]
     # _PyDateTime_TIMEHEAD
     tzinfo*: PyObjectPtr
     
   PyDateTime_DatePtr* = ptr PyDateTime_Date
   PyDateTime_Date* = object
     # _PyTZINFO_HEAD
-    ob_base*: PyObject
+    obBase*: PyObject
     hashcode*: PyHashT
     hastzinfo*: int8
     # _PyTZINFO_HEAD
-    data*: array[PyDateTime_DATE_DATASIZE, cuchar]
+    data*: array[datetimeTimeDataSize, cuchar]
     
   PyDateTime_DateTimePtr* = ptr PyDateTime_DateTime
   PyDateTime_DateTime* = object
     # _PyDateTime_DATETIMEHEAD  
     # _PyTZINFO_HEAD
-    ob_base*: PyObject
+    obBase*: PyObject
     hashcode*: PyHashT
     hastzinfo*: int8
     # _PyTZINFO_HEAD
-    data*: array[PyDateTime_DATETIME_DATASIZE, cuchar]
+    data*: array[datetimeDateTimeDataSize, cuchar]
     # _PyDateTime_DATETIMEHEAD  
     tzinfo*: PyObjectPtr
 
   PyDateTimeDeltaPtr* = ptr PyDateTimeDelta
   PyDateTimeDelta* = object 
     # _PyTZINFO_HEAD
-    ob_base*: PyObject
+    obBase*: PyObject
     hashcode*: PyHashT
     hastzinfo*: int8
     # _PyTZINFO_HEAD
@@ -1521,36 +1529,36 @@ type
     microseconds*: int        # 0 <= microseconds < 1000000 is invariant 
   
 
-proc PyDate_Check*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDate_CheckExact*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_Check*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_CheckExact*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyTime_Check*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyTime_CheckExact*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDelta_Check*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDelta_CheckExact*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyTZInfo_Check*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyTZInfo_CheckExact*(ob: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDate_FromDate*(year: cint; month: cint; day: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_FromDateAndTime*(year: cint; month: cint; day: cint; hour: cint; minute: cint; second: cint; usecond: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyTime_FromTime*(hour: cint; minute: cint; second: cint; usecond: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDelta_FromDSU*(days: cint; seconds: cint; useconds: cint): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_GET_YEAR*(o: PyDateTime_DatePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_GET_MONTH*(o: PyDateTime_DatePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_GET_DAY*(o: PyDateTime_DatePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_DATE_GET_HOUR*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_DATE_GET_MINUTE*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_DATE_GET_SECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_DATE_GET_MICROSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_TIME_GET_HOUR*(o: PyDateTime_TimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_TIME_GET_MINUTE*(o: PyDateTime_TimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_TIME_GET_SECOND*(o: PyDateTime_TimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_TIME_GET_MICROSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTimeDelta_GET_DAYS*(o: PyDateTimeDeltaPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTimeDelta_GET_SECONDS*(o: PyDateTimeDeltaPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTimeDelta_GET_MICROSECOND*(o: PyDateTimeDeltaPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyDateTime_FromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyDate_FromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc dateCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDate_Check" dynlib: libraryString.}
+proc dateCheckExact*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDate_CheckExact" dynlib: libraryString.}
+proc dateTimeCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDateTime_Check" dynlib: libraryString.}
+proc dateTimeCheckExact*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDateTime_CheckExact" dynlib: libraryString.}
+proc timeCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTime_Check" dynlib: libraryString.}
+proc timeCheckExact*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTime_CheckExact" dynlib: libraryString.}
+proc deltaCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDelta_Check" dynlib: libraryString.}
+proc deltaCheckExact*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDelta_CheckExact" dynlib: libraryString.}
+proc tzInfoCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTZInfo_Check" dynlib: libraryString.}
+proc tzInfoCheckExact*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTZInfo_CheckExact" dynlib: libraryString.}
+proc dateFromDate*(year: cint; month: cint; day: cint): PyObjectPtr {.cdecl, importc: "PyDate_FromDate" dynlib: libraryString.}
+proc dateTimeFromDateAndTime*(year: cint; month: cint; day: cint; hour: cint; minute: cint; second: cint; usecond: cint): PyObjectPtr {.cdecl, importc: "PyDateTime_FromDateAndTime" dynlib: libraryString.}
+proc timeFromTime*(hour: cint; minute: cint; second: cint; usecond: cint): PyObjectPtr {.cdecl, importc: "PyTime_FromTime" dynlib: libraryString.}
+proc deltaFromDSU*(days: cint; seconds: cint; useconds: cint): PyObjectPtr {.cdecl, importc: "PyDelta_FromDSU" dynlib: libraryString.}
+proc dateTimeGETYEAR*(o: PyDateTime_DatePtr): cint {.cdecl, importc: "PyDateTime_GET_YEAR" dynlib: libraryString.}
+proc dateTimeGETMONTH*(o: PyDateTime_DatePtr): cint {.cdecl, importc: "PyDateTime_GET_MONTH" dynlib: libraryString.}
+proc dateTimeGETDAY*(o: PyDateTime_DatePtr): cint {.cdecl, importc: "PyDateTime_GET_DAY" dynlib: libraryString.}
+proc dateTimeDATEGETHOUR*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc: "PyDateTime_DATE_GET_HOUR" dynlib: libraryString.}
+proc dateTimeDATEGETMINUTE*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc: "PyDateTime_DATE_GET_MINUTE" dynlib: libraryString.}
+proc dateTimeDATEGETSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc: "PyDateTime_DATE_GET_SECOND" dynlib: libraryString.}
+proc dateTimeDATEGETMICROSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, importc: "PyDateTime_DATE_GET_MICROSECOND" dynlib: libraryString.}
+proc dateTimeTIMEGETHOUR*(o: PyDateTime_TimePtr): cint {.cdecl, importc: "PyDateTime_TIME_GET_HOUR" dynlib: libraryString.}
+proc dateTimeTIMEGETMINUTE*(o: PyDateTime_TimePtr): cint {.cdecl, importc: "PyDateTime_TIME_GET_MINUTE" dynlib: libraryString.}
+proc dateTimeTIMEGETSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, importc: "PyDateTime_TIME_GET_SECOND" dynlib: libraryString.}
+proc dateTimeTIMEGETMICROSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, importc: "PyDateTime_TIME_GET_MICROSECOND" dynlib: libraryString.}
+proc dateTimeDeltaGETDAYS*(o: PyDateTimeDeltaPtr): cint {.cdecl, importc: "PyDateTimeDelta_GET_DAYS" dynlib: libraryString.}
+proc dateTimeDeltaGETSECONDS*(o: PyDateTimeDeltaPtr): cint {.cdecl, importc: "PyDateTimeDelta_GET_SECONDS" dynlib: libraryString.}
+proc dateTimeDeltaGETMICROSECOND*(o: PyDateTimeDeltaPtr): cint {.cdecl, importc: "PyDateTimeDelta_GET_MICROSECOND" dynlib: libraryString.}
+proc dateTimeFromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDateTime_FromTimestamp" dynlib: libraryString.}
+proc dateFromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyDate_FromTimestamp" dynlib: libraryString.}
 
 #Initialization, Finalization, and Threads
 type 
@@ -1571,33 +1579,33 @@ type
     next*: PyThreadStatePtr
     interp*: PyInterpreterStatePtr
     frame*: ptr Frame
-    recursion_depth*: cint
+    recursionDepth*: cint
     overflowed*: char
-    recursion_critical*: char
+    recursionCritical*: char
     tracing*: cint
-    use_tracing*: cint
-    c_profilefunc*: PyTraceFunc
-    c_tracefunc*: PyTraceFunc
-    c_profileobj*: PyObjectPtr
-    c_traceobj*: PyObjectPtr
-    curexc_type*: PyObjectPtr
-    curexc_value*: PyObjectPtr
-    curexc_traceback*: PyObjectPtr
-    exc_type*: PyObjectPtr
-    exc_value*: PyObjectPtr
-    exc_traceback*: PyObjectPtr
+    useTracing*: cint
+    cProfilefunc*: PyTraceFunc
+    cTracefunc*: PyTraceFunc
+    cProfileobj*: PyObjectPtr
+    cTraceobj*: PyObjectPtr
+    curexcType*: PyObjectPtr
+    curexcValue*: PyObjectPtr
+    curexcTraceback*: PyObjectPtr
+    excType*: PyObjectPtr
+    excValue*: PyObjectPtr
+    excTraceback*: PyObjectPtr
     dict*: PyObjectPtr
-    gilstate_counter*: cint
-    async_exc*: PyObjectPtr
-    thread_id*: clong
-    trash_delete_nesting*: cint
-    trash_delete_later*: PyObjectPtr
-    on_delete*: proc (arg: pointer) {.cdecl.}
-    on_delete_data*: pointer
+    gilstateCounter*: cint
+    asyncExc*: PyObjectPtr
+    threadId*: clong
+    trashDeleteNesting*: cint
+    trashDeleteLater*: PyObjectPtr
+    onDelete*: proc (arg: pointer) {.cdecl.}
+    onDeleteData*: pointer
     
-  PyGILState_STATE* {.size: sizeof(cint).} = enum 
-    PyGILState_LOCKED
-    PyGILState_UNLOCKED
+  PyGILStateState* {.size: sizeof(cint).} = enum 
+    gsLOCKED
+    gsUNLOCKED
 
 
 #Py_BEGIN_ALLOW_THREADS
@@ -1606,91 +1614,91 @@ type
 #Py_UNBLOCK_THREADS
 
 var
-  PyTrace_CALL*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_CALL"))
-  PyTrace_EXCEPTION*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_EXCEPTION"))
-  PyTrace_LINE*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_LINE"))
-  PyTrace_RETURN*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_RETURN"))
-  PyTrace_C_CALL*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_C_CALL"))
-  PyTrace_C_EXCEPTION*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_C_EXCEPTION"))
-  PyTrace_C_RETURN*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_C_RETURN"))
+  traceCALL*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_CALL"))
+  traceEXCEPTION*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_EXCEPTION"))
+  traceLINE*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_LINE"))
+  traceRETURN*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_RETURN"))
+  traceCCALL*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_C_CALL"))
+  traceCEXCEPTION*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_C_EXCEPTION"))
+  traceCRETURN*: cint = cast[cint](dynlib.symAddr(libraryHandle, "PyTrace_C_RETURN"))
 
 #proc Py_Initialize*() {.cdecl, importc, dynlib: libraryString.}
-proc Py_InitializeEx*(initsigs: cint) {.cdecl, importc, dynlib: libraryString.}
-proc Py_IsInitialized*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc initializeEx*(initsigs: cint) {.cdecl, importc: "Py_InitializeEx" dynlib: libraryString.}
+proc isInitialized*(): cint {.cdecl, importc: "Py_IsInitialized" dynlib: libraryString.}
 #proc Py_Finalize*() {.cdecl, importc, dynlib: libraryString.}
-proc Py_SetStandardStreamEncoding*(encoding: cstring; errors: cstring): cint {.cdecl, importc, dynlib: libraryString.}
-proc Py_SetProgramName*(name: PyUnicode) {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetProgramName*(): PyUnicode {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetPrefix*(): PyUnicode {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetExecPrefix*(): PyUnicode {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetProgramFullPath*(): PyUnicode {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetPath*(): PyUnicode {.cdecl, importc, dynlib: libraryString.}
-proc Py_SetPath*(arg: PyUnicode) {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetVersion*(): cstring {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetPlatform*(): cstring {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetCopyright*(): cstring {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetCompiler*(): cstring {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetBuildInfo*(): cstring {.cdecl, importc, dynlib: libraryString.}
-proc PySys_SetArgvEx*(argc: cint; argv: PyUnicodePtr; updatepath: cint) {.cdecl, importc, dynlib: libraryString.}
-proc PySys_SetArgv*(argc: cint; argv: PyUnicodePtr) {.cdecl, importc, dynlib: libraryString.}
-proc Py_SetPythonHome*(home: PyUnicode) {.cdecl, importc, dynlib: libraryString.}
-proc Py_GetPythonHome*(): PyUnicode {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_InitThreads*() {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_ThreadsInitialized*(): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_SaveThread*(): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_RestoreThread*(tstate: PyThreadStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_Get*(): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_Swap*(tstate: PyThreadStatePtr): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_ReInitThreads*() {.cdecl, importc, dynlib: libraryString.}
-proc PyGILState_Ensure*(): PyGILState_STATE {.cdecl, importc, dynlib: libraryString.}
-proc PyGILState_Release*(arg: PyGILState_STATE) {.cdecl, importc, dynlib: libraryString.}
-proc PyGILState_GetThisThreadState*(): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyGILState_Check*(): cint {.cdecl, importc, dynlib: libraryString.}
+proc setStandardStreamEncoding*(encoding: cstring; errors: cstring): cint {.cdecl, importc: "Py_SetStandardStreamEncoding" dynlib: libraryString.}
+proc setProgramName*(name: PyUnicode) {.cdecl, importc: "Py_SetProgramName" dynlib: libraryString.}
+proc getProgramName*(): PyUnicode {.cdecl, importc: "Py_GetProgramName" dynlib: libraryString.}
+proc getPrefix*(): PyUnicode {.cdecl, importc: "Py_GetPrefix" dynlib: libraryString.}
+proc getExecPrefix*(): PyUnicode {.cdecl, importc: "Py_GetExecPrefix" dynlib: libraryString.}
+proc getProgramFullPath*(): PyUnicode {.cdecl, importc: "Py_GetProgramFullPath" dynlib: libraryString.}
+proc getPath*(): PyUnicode {.cdecl, importc: "Py_GetPath" dynlib: libraryString.}
+proc setPath*(arg: PyUnicode) {.cdecl, importc: "Py_SetPath" dynlib: libraryString.}
+proc getVersion*(): cstring {.cdecl, importc: "Py_GetVersion" dynlib: libraryString.}
+proc getPlatform*(): cstring {.cdecl, importc: "Py_GetPlatform" dynlib: libraryString.}
+proc getCopyright*(): cstring {.cdecl, importc: "Py_GetCopyright" dynlib: libraryString.}
+proc getCompiler*(): cstring {.cdecl, importc: "Py_GetCompiler" dynlib: libraryString.}
+proc getBuildInfo*(): cstring {.cdecl, importc: "Py_GetBuildInfo" dynlib: libraryString.}
+proc sysSetArgvEx*(argc: cint; argv: PyUnicodePtr; updatepath: cint) {.cdecl, importc: "PySys_SetArgvEx" dynlib: libraryString.}
+proc sysSetArgv*(argc: cint; argv: PyUnicodePtr) {.cdecl, importc: "PySys_SetArgv" dynlib: libraryString.}
+proc setPythonHome*(home: PyUnicode) {.cdecl, importc: "Py_SetPythonHome" dynlib: libraryString.}
+proc getPythonHome*(): PyUnicode {.cdecl, importc: "Py_GetPythonHome" dynlib: libraryString.}
+proc evalInitThreads*() {.cdecl, importc: "PyEval_InitThreads" dynlib: libraryString.}
+proc evalThreadsInitialized*(): cint {.cdecl, importc: "PyEval_ThreadsInitialized" dynlib: libraryString.}
+proc evalSaveThread*(): PyThreadStatePtr {.cdecl, importc: "PyEval_SaveThread" dynlib: libraryString.}
+proc evalRestoreThread*(tstate: PyThreadStatePtr) {.cdecl, importc: "PyEval_RestoreThread" dynlib: libraryString.}
+proc threadStateGet*(): PyThreadStatePtr {.cdecl, importc: "PyThreadState_Get" dynlib: libraryString.}
+proc threadStateSwap*(tstate: PyThreadStatePtr): PyThreadStatePtr {.cdecl, importc: "PyThreadState_Swap" dynlib: libraryString.}
+proc evalReInitThreads*() {.cdecl, importc: "PyEval_ReInitThreads" dynlib: libraryString.}
+proc gilStateEnsure*(): PyGILState_STATE {.cdecl, importc: "PyGILState_Ensure" dynlib: libraryString.}
+proc gilStateRelease*(arg: PyGILState_STATE) {.cdecl, importc: "PyGILState_Release" dynlib: libraryString.}
+proc gilStateGetThisThreadState*(): PyThreadStatePtr {.cdecl, importc: "PyGILState_GetThisThreadState" dynlib: libraryString.}
+proc gilStateCheck*(): cint {.cdecl, importc: "PyGILState_Check" dynlib: libraryString.}
 
 #Low-level API
-proc PyInterpreterState_New*(): PyInterpreterStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyInterpreterState_Clear*(interp: PyInterpreterStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyInterpreterState_Delete*(interp: PyInterpreterStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_New*(interp: PyInterpreterStatePtr): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_Clear*(tstate: PyThreadStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_Delete*(tstate: PyThreadStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_GetDict*(): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_SetAsyncExc*(id: clong; exc: PyObjectPtr): cint {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_AcquireThread*(tstate: PyThreadStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_ReleaseThread*(tstate: PyThreadStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_AcquireLock*() {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_ReleaseLock*() {.cdecl, importc, dynlib: libraryString.}
+proc interpreterStateNew*(): PyInterpreterStatePtr {.cdecl, importc: "PyInterpreterState_New" dynlib: libraryString.}
+proc interpreterStateClear*(interp: PyInterpreterStatePtr) {.cdecl, importc: "PyInterpreterState_Clear" dynlib: libraryString.}
+proc interpreterStateDelete*(interp: PyInterpreterStatePtr) {.cdecl, importc: "PyInterpreterState_Delete" dynlib: libraryString.}
+proc threadStateNew*(interp: PyInterpreterStatePtr): PyThreadStatePtr {.cdecl, importc: "PyThreadState_New" dynlib: libraryString.}
+proc threadStateClear*(tstate: PyThreadStatePtr) {.cdecl, importc: "PyThreadState_Clear" dynlib: libraryString.}
+proc threadStateDelete*(tstate: PyThreadStatePtr) {.cdecl, importc: "PyThreadState_Delete" dynlib: libraryString.}
+proc threadStateGetDict*(): PyObjectPtr {.cdecl, importc: "PyThreadState_GetDict" dynlib: libraryString.}
+proc threadStateSetAsyncExc*(id: clong; exc: PyObjectPtr): cint {.cdecl, importc: "PyThreadState_SetAsyncExc" dynlib: libraryString.}
+proc evalAcquireThread*(tstate: PyThreadStatePtr) {.cdecl, importc: "PyEval_AcquireThread" dynlib: libraryString.}
+proc evalReleaseThread*(tstate: PyThreadStatePtr) {.cdecl, importc: "PyEval_ReleaseThread" dynlib: libraryString.}
+proc evalAcquireLock*() {.cdecl, importc: "PyEval_AcquireLock" dynlib: libraryString.}
+proc evalReleaseLock*() {.cdecl, importc: "PyEval_ReleaseLock" dynlib: libraryString.}
 
 #Sub-interpreter support
-proc Py_NewInterpreter*(): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc Py_EndInterpreter*(tstate: PyThreadStatePtr) {.cdecl, importc, dynlib: libraryString.}
-proc Py_AddPendingCall*(fun: proc (arg: pointer): cint {.cdecl.}; arg: pointer): cint {.cdecl, importc, dynlib: libraryString.}
+proc newInterpreter*(): PyThreadStatePtr {.cdecl, importc: "Py_NewInterpreter" dynlib: libraryString.}
+proc endInterpreter*(tstate: PyThreadStatePtr) {.cdecl, importc: "Py_EndInterpreter" dynlib: libraryString.}
+proc addPendingCall*(fun: proc (arg: pointer): cint {.cdecl.}; arg: pointer): cint {.cdecl, importc: "Py_AddPendingCall" dynlib: libraryString.}
 
 #Profiling and Tracing
-proc PyEval_SetProfile*(fun: PyTraceFunc; obj: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_SetTrace*(fun: PyTraceFunc; obj: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyEval_GetCallStats*(self: PyObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc evalSetProfile*(fun: PyTraceFunc; obj: PyObjectPtr) {.cdecl, importc: "PyEval_SetProfile" dynlib: libraryString.}
+proc evalSetTrace*(fun: PyTraceFunc; obj: PyObjectPtr) {.cdecl, importc: "PyEval_SetTrace" dynlib: libraryString.}
+proc evalGetCallStats*(self: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyEval_GetCallStats" dynlib: libraryString.}
 
 #Advanced Debugger Support
-proc PyInterpreterState_Head*(): PyInterpreterStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyInterpreterState_Next*(interp: PyInterpreterStatePtr): PyInterpreterStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyInterpreterState_ThreadHead*(interp: PyInterpreterStatePtr): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
-proc PyThreadState_Next*(tstate: PyThreadStatePtr): PyThreadStatePtr {.cdecl, importc, dynlib: libraryString.}
+proc interpreterStateHead*(): PyInterpreterStatePtr {.cdecl, importc: "PyInterpreterState_Head" dynlib: libraryString.}
+proc interpreterStateNext*(interp: PyInterpreterStatePtr): PyInterpreterStatePtr {.cdecl, importc: "PyInterpreterState_Next" dynlib: libraryString.}
+proc interpreterStateThreadHead*(interp: PyInterpreterStatePtr): PyThreadStatePtr {.cdecl, importc: "PyInterpreterState_ThreadHead" dynlib: libraryString.}
+proc threadStateNext*(tstate: PyThreadStatePtr): PyThreadStatePtr {.cdecl, importc: "PyThreadState_Next" dynlib: libraryString.}
 
 #Memory Management
 #Raw Memory Interface
-proc PyMem_RawMalloc*(n: csize): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyMem_RawRealloc*(p: pointer; n: csize): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyMem_RawFree*(p: pointer) {.cdecl, importc, dynlib: libraryString.}
+proc memRawMalloc*(n: csize): pointer {.cdecl, importc: "PyMem_RawMalloc" dynlib: libraryString.}
+proc memRawRealloc*(p: pointer; n: csize): pointer {.cdecl, importc: "PyMem_RawRealloc" dynlib: libraryString.}
+proc memRawFree*(p: pointer) {.cdecl, importc: "PyMem_RawFree" dynlib: libraryString.}
 
 #Memory Interface
-proc PyMem_Malloc*(n: csize): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyMem_Realloc*(p: pointer; n: csize): pointer {.cdecl, importc, dynlib: libraryString.}
-proc PyMem_Free*(p: pointer) {.cdecl, importc, dynlib: libraryString.}
+proc memMalloc*(n: csize): pointer {.cdecl, importc: "PyMem_Malloc" dynlib: libraryString.}
+proc memRealloc*(p: pointer; n: csize): pointer {.cdecl, importc: "PyMem_Realloc" dynlib: libraryString.}
+proc memFree*(p: pointer) {.cdecl, importc: "PyMem_Free" dynlib: libraryString.}
 #TYPE* PyMem_New(TYPE, size_t n);
 #TYPE* PyMem_Resize(void *p, TYPE, size_t n);
 
-proc PyMem_Del*(p: pointer) {.cdecl, importc, dynlib: libraryString.}
+proc memDel*(p: pointer) {.cdecl, importc: "PyMem_Del" dynlib: libraryString.}
 
 #Customize Memory Allocators
 type
@@ -1702,23 +1710,23 @@ type
     free*: proc (ctx: pointer; pt: pointer) {.cdecl.}
 
   PyMemAllocatorDomain* {.size: sizeof(cint).} = enum
-    PYMEM_DOMAIN_RAW,   # PyMem_RawMalloc(), PyMem_RawRealloc() and PyMem_RawFree()      
-    PYMEM_DOMAIN_MEM,   # PyMem_Malloc(), PyMem_Realloc() and PyMem_Free()       
-    PYMEM_DOMAIN_OBJ    # PyObject_Malloc(), PyObject_Realloc() and PyObject_Free() 
+    pmadRAW,   # PyMem_RawMalloc(), PyMem_RawRealloc() and PyMem_RawFree()      
+    pmadMEM,   # PyMem_Malloc(), PyMem_Realloc() and PyMem_Free()       
+    pmadOBJ    # PyObject_Malloc(), PyObject_Realloc() and PyObject_Free() 
 
 
-proc PyMem_GetAllocator*(domain: PyMemAllocatorDomain; allocator: PyMemAllocatorPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyMem_SetAllocator*(domain: PyMemAllocatorDomain; allocator: PyMemAllocatorPtr) {.cdecl, importc, dynlib: libraryString.}
-proc PyMem_SetupDebugHooks*() {.cdecl, importc, dynlib: libraryString.}
+proc memGetAllocator*(domain: PyMemAllocatorDomain; allocator: PyMemAllocatorPtr) {.cdecl, importc: "PyMem_GetAllocator" dynlib: libraryString.}
+proc memSetAllocator*(domain: PyMemAllocatorDomain; allocator: PyMemAllocatorPtr) {.cdecl, importc: "PyMem_SetAllocator" dynlib: libraryString.}
+proc memSetupDebugHooks*() {.cdecl, importc: "PyMem_SetupDebugHooks" dynlib: libraryString.}
 
 #Allocating Objects on the Heap
-proc PyObject_New*(typ: PyTypeObjectPtr): PyObjectPtr {.cdecl, importc: "_PyObject_New", dynlib: libraryString.}
-proc PyObject_NewVar*(typ: PyTypeObjectPtr; size: PySizeT): PyVarObjectPtr {.cdecl, importc: "_PyObject_NewVar", dynlib: libraryString.}
-proc PyObject_Init*(op: PyObjectPtr; typ: PyTypeObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
-proc PyObject_InitVar*(op: PyVarObjectPtr; typ: PyTypeObjectPtr; size: PySizeT): PyVarObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc objectNew*(typ: PyTypeObjectPtr): PyObjectPtr {.cdecl, importc: "_PyObject_New", dynlib: libraryString.}
+proc objectNewVar*(typ: PyTypeObjectPtr; size: PySizeT): PyVarObjectPtr {.cdecl, importc: "_PyObject_NewVar", dynlib: libraryString.}
+proc objectInit*(op: PyObjectPtr; typ: PyTypeObjectPtr): PyObjectPtr {.cdecl, importc, dynlib: libraryString.}
+proc objectInitVar*(op: PyVarObjectPtr; typ: PyTypeObjectPtr; size: PySizeT): PyVarObjectPtr {.cdecl, importc, dynlib: libraryString.}
 #TYPE* PyObject_New(TYPE, PyTypeObject *type);
 #TYPE* PyObject_NewVar(TYPE, PyTypeObject *type, PySizeT size);
-proc PyObject_Del*(op: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
+proc objectDel*(op: PyObjectPtr) {.cdecl, importc: "PyObject_Del" dynlib: libraryString.}
 
 
 ## Helper procedures

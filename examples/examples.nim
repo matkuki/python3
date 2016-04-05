@@ -19,7 +19,7 @@ proc Example1() =
   for arg in arguments:
     cArgumentList.add(newWideCString(arg))
   # Run the interpreter by passing it the application arguments
-  returnValue = Py_Main(cArgumentList.len, addr(cArgumentList[0]))
+  returnValue = main(cArgumentList.len, addr(cArgumentList[0]))
   if returnValue == 1:
     echo("Exception occured!")
   elif returnValue == 2:
@@ -30,28 +30,28 @@ proc Example2() =
   var
     fileName: string = "script_example1.py"
   # Set program name in python (recommended)
-  Py_SetProgramName("Example 2 ŽĆČŠĐ ŁĄŻĘĆŃŚŹ ЯБГДЖЙ ÄäÜüß")
+  setProgramName("Example 2 ŽĆČŠĐ ŁĄŻĘĆŃŚŹ ЯБГДЖЙ ÄäÜüß")
   # Initialize the Python interpreter
-  Py_Initialize()
+  initialize()
   # Execute the script
-  if PyRun_AnyFile(fileName) == -1:
+  if runAnyFile(fileName) == -1:
     echo("Exception occured in Python script!")
   # Display program name
-  echo Py_GetProgramName()
+  echo getProgramName()
   # Close and delete the Python interpreter
-  Py_Finalize()
+  finalize()
 
 proc Example3() =
   ## Executing a python script from a string
   # Setup the string variable with some python code
   var pythonString = "import time\nprint('Today is ', time.ctime(time.time()))"
   # Initialize the Python interpreter
-  Py_Initialize()
+  initialize()
   # Execute the string script
-  if PyRun_SimpleString(pythonString) == -1:
+  if runSimpleString(pythonString) == -1:
     echo("Exception occured in Python script!")
   # Close and delete the Python interpreter
-  Py_Finalize()
+  finalize()
 
 proc Example4() =
   ## Example of binding a hook to a Nim procedure
@@ -60,7 +60,7 @@ proc Example4() =
   proc procBoundToHook(): int{.cdecl.} =
     echo "HOOK EXECUTED!"
   # Set the hook(function pointer) to point to the custom procedure
-  PyOS_InputHook[] = procBoundToHook
+  osInputHook[] = procBoundToHook
   # Run the interpreter and see the hook executed every time 
   # the interpreter prompts for the users input
   Example1()
@@ -68,19 +68,19 @@ proc Example4() =
 proc Example5() =
   ## Simple example of an Exception in a python script
   # Initialize the Python interpreter
-  Py_Initialize()
+  initialize()
   # Variable Initialization
   var
     pythonString: cstring = "import time\nd=\nprint('Today is ', time.ctime(time.time()))"
-    pyGlobals: PyObjectPtr = PyModule_GetDict(PyImport_AddModule("__main__"))
+    pyGlobals: PyObjectPtr = moduleGetDict(importAddModule("__main__"))
     pyLocals: PyObjectPtr = pyGlobals
   # Check globals, locals dictionaries and run the python string
   if pyGlobals == nil or pyLocals == nil:
     echo("Error creating globals and locals dictionaries")
-  elif PyRun_String(pythonString, pyFileInput, pyGlobals, pyLocals) == nil:
+  elif runString(pythonString, pyFileInput, pyGlobals, pyLocals) == nil:
     echo("Exception occured in Python script!")
   # Close and delete the Python interpreter
-  Py_Finalize()
+  finalize()
 
 
 ## Pure Embedding (C example translation)
@@ -103,47 +103,47 @@ proc Example6() =
   if len(arguments) < 2:
     quit "Usage: call pythonfile funcname [args]"
   # Initialize the Python interpreter
-  Py_Initialize()
+  initialize()
   # Get the app name into a python object
-  pName = PyUnicode_FromString(arguments[0]) # Error checking of pName left out
+  pName = unicodeFromString(arguments[0]) # Error checking of pName left out
   #echo PyBytes_AsString(PyUnicode_AsASCIIString(pName))
-  pModule = PyImport_Import(pName)
-  Py_DECREF(pName)
+  pModule = importImport(pName)
+  decref(pName)
   # Check if module was loaded
   if pModule != nil:
-    pFunc = PyObject_GetAttrString(pModule, arguments[1]) # pFunc is a new reference
-    if pFunc != nil and PyCallable_Check(pFunc) != 0:
+    pFunc = objectGetAttrString(pModule, arguments[1]) # pFunc is a new reference
+    if pFunc != nil and callableCheck(pFunc) != 0:
       var countStart = argumentCount - 2
-      pArgs = PyTuple_New(countStart)
+      pArgs = tupleNew(countStart)
       for i in 0..(countStart-1):
-        pValue = PyLong_FromLong(clong(parseInt(arguments[i + 2])))
+        pValue = longFromLong(clong(parseInt(arguments[i + 2])))
         # Check if parameter value is valid
         if pValue == nil:
-          Py_DECREF(pArgs)
-          Py_DECREF(pModule)
+          decref(pArgs)
+          decref(pModule)
           quit "Cannot convert argument number: $1" % $i
         # pValue reference stolen here:
-        if PyTuple_SetItem(pArgs, i, pValue) != 0:
+        if tupleSetItem(pArgs, i, pValue) != 0:
           quit "Cannot insert tuple item: $1" % $i
-      pValue = PyObject_CallObject(pFunc, pArgs)
-      Py_DECREF(pArgs)
+      pValue = objectCallObject(pFunc, pArgs)
+      decref(pArgs)
       if pValue != nil:
-        echo "Result of call: $1" % $PyLong_AsLong(pValue)
-        Py_DECREF(pValue)
+        echo "Result of call: $1" % $longAsLong(pValue)
+        decref(pValue)
       else:
-        Py_DECREF(pFunc)
-        Py_DECREF(pModule)
-        PyErr_Print()
+        decref(pFunc)
+        decref(pModule)
+        errPrint()
         quit "Call failed!"
     else:
-      if PyErr_Occurred() != nil:
-        PyErr_Print()
+      if errOccurred() != nil:
+        errPrint()
       quit "Cannot find function '$1'\n" % arguments[1]
   else:
-    PyErr_Print();
+    errPrint();
     quit "Failed to load '$1'" % arguments[0]
   # Close and delete the Python interpreter
-  Py_Finalize()
+  finalize()
 
 
 ## Extending Embedded Python (C example translation)
@@ -154,19 +154,19 @@ var
   EmbModule: PyModuleDef
   
 proc emb_numargs(self: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl.} =
-  if PyArg_ParseTuple(args, ":numargs") == 0:
+  if argParseTuple(args, ":numargs") == 0:
     return nil
-  return PyLong_FromLong(numargs)
+  return longFromLong(numargs)
 
-template PyObject_HEAD_INIT(typ): expr =
+template pyObjectHeadInit(typ): expr =
   PyObject(
     ob_refcnt: 1,
     ob_type: typ
   )
 
-template PyModuleDef_HEAD_INIT(): expr =
+template pyModuleDefHeadInit(): expr =
   PyModuleDefBase(
-    ob_base: PyObject_HEAD_INIT(nil),
+    ob_base: pyObjectHeadInit(nil),
     m_init: nil,
     m_index: 0,
     m_copy: nil
@@ -176,7 +176,7 @@ EmbMethods = [
   PyMethodDef(
     ml_name: "numargs", 
     ml_meth: emb_numargs, 
-    ml_flags: METH_VARARGS, 
+    ml_flags: methVarargs, 
     ml_doc: "Return the number of arguments received by the process."
   ),
   PyMethodDef(
@@ -188,7 +188,7 @@ EmbMethods = [
 ]
 
 EmbModule = PyModuleDef(
-    m_base: PyModuleDef_HEAD_INIT(),
+    m_base: pyModuleDefHeadInit(),
     m_name: "emb",
     m_doc: "Nim's embedded Python module",
     m_size: -1,
@@ -199,8 +199,8 @@ EmbModule = PyModuleDef(
     m_free: nil,
 )
 
-proc PyInit_emb(): PyObjectPtr {.cdecl.} =
-  return PyModule_Create(addr(EmbModule))
+proc pyInitEmb(): PyObjectPtr {.cdecl.} =
+  return moduleCreate(addr(EmbModule))
   
 proc Example7() =
   # Application parameters
@@ -210,15 +210,15 @@ proc Example7() =
     argumentCount = os.paramCount()
     fileName = "script_example2.py"
   numargs = argumentCount.cint()
-  if PyImport_AppendInittab("emb", PyInit_emb) == -1:
+  if importAppendInittab("emb", pyInitEmb) == -1:
     quit "Could not add module 'emb'!"
   # Initialize the Python interpreter
-  Py_Initialize()
+  initialize()
   # Execute the script
-  if PyRun_AnyFile(fileName) == -1:
+  if runAnyFile(fileName) == -1:
     echo("Exception occured in Python script!")
   # Close and delete the Python interpreter
-  Py_Finalize()
+  finalize()
 
 
 ## Run one of the examples
@@ -227,7 +227,7 @@ proc Example7() =
 #Example3()
 #Example4()
 #Example5()
-#Example6()
-Example7()
+Example6()
+#Example7()
 
 
