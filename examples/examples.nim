@@ -6,6 +6,18 @@ import os, strutils
 
 
 ## Very high level python binding examples
+proc getPythonVersion() =
+  let pythonString = "import sys\nprint(sys.version)"
+  # Set program name in python (recommended)
+  setProgramName("get Python3 version string")
+  # Initialize the Python interpreter
+  initialize()
+  # Execute the string script
+  if runSimpleString(pythonString) == -1:
+    echo("Exception occured in Python script!")
+  # Close and delete the Python interpreter
+  finalize()
+
 proc Example1() =
   ## Run an interactive Python interpreter in a Nim console application
   let
@@ -222,12 +234,13 @@ proc Example7() =
 
 
 ## Run one of the examples
+getPythonVersion()
 #Example1()
 #Example2()
 #Example3()
 #Example4()
 #Example5()
-Example6()
+#Example6()
 #Example7()
 
 

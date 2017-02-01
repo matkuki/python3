@@ -1113,8 +1113,8 @@ proc objectNot*(o: PyObjectPtr): cint {.cdecl, importc: "PyObject_Not"
   dynlib: libraryString.}
 proc objectType*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Type" 
   dynlib: libraryString.}
-proc objectTypeCheck*(o: PyObjectPtr; typ: PyTypeObjectPtr): cint {.cdecl, 
-  importc: "PyObject_TypeCheck" dynlib: libraryString.}
+template objectTypeCheck(ob, tp): expr = 
+  (pyType(ob) == tp or typeIsSubtype(pyType(ob), (tp)))
 proc objectLength*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Length" 
   dynlib: libraryString.}
 proc objectSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Size" 
@@ -1370,13 +1370,17 @@ template returnNone*(): expr =
     return none()
 
 #Integer Objects
-var PyLong_Type*: PyTypeObject = cast[PyTypeObject](
+var PyLongType*: PyTypeObject = cast[PyTypeObject](
                   dynlib.symAddr(libraryHandle, "PyLong_Type"))
+const Py_TPFLAGS_LONG_SUBCLASS = culong(1) shl 24
 
-proc longCheck*(p: PyObjectPtr): cint {.cdecl, importc: "PyLong_Check" 
-  dynlib: libraryString.}
-proc longCheckExact*(p: PyObjectPtr): cint {.cdecl, 
-  importc: "PyLong_CheckExact" dynlib: libraryString.}
+template typeHasFeature*(t, f): expr =
+  ((uint32(t.tpFlags) and (f)) != 0)
+template longCheck*(op): expr =
+  typeHasFeature(pyType(op), Py_TPFLAGS_LONG_SUBCLASS)
+template longCheckExact*(op): expr =
+  (pyType(op) == addr(PyLongType))
+
 proc longFromLong*(v: clong): PyObjectPtr {.cdecl, importc: "PyLong_FromLong" 
   dynlib: libraryString.}
 proc longFromUnsignedLong*(v: culong): PyObjectPtr {.cdecl, 
@@ -2321,7 +2325,7 @@ var
 
 # #define PyWeakref_CheckRef(op) PyObject_TypeCheck(op, &_PyWeakref_RefType)
 template weakrefCheckRef*(op): cint = 
-  PyObject_TypeCheck(op, addr(weakrefRefType))
+  objectTypeCheck(op, addr(weakrefRefType))
 # #define PyWeakref_CheckProxy(op) ((Py_TYPE(op) == &_PyWeakref_ProxyType) || (Py_TYPE(op) == &_PyWeakref_CallableProxyType))
 template weakrefCheckProxy*(op): cint = 
   ((pyType(op) == addr(weakrefProxyType)) or 
