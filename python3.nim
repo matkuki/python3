@@ -1113,8 +1113,8 @@ proc objectNot*(o: PyObjectPtr): cint {.cdecl, importc: "PyObject_Not"
   dynlib: libraryString.}
 proc objectType*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Type" 
   dynlib: libraryString.}
-template objectTypeCheck(ob, tp): expr = 
-  (pyType(ob) == tp or typeIsSubtype(pyType(ob), (tp)))
+template objectTypeCheck*(ob, tp): expr = 
+  (pyType(ob) == tp or typeIsSubtype(pyType(ob), (tp)) == 1)
 proc objectLength*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Length" 
   dynlib: libraryString.}
 proc objectSize*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Size" 
@@ -1870,6 +1870,10 @@ proc unicodeInternFromString*(v: cstring): PyObjectPtr {.cdecl,
 
 #Tuple Objects
 type
+  PyTupleObjectPtr* = ptr PyTupleObject
+  PyTupleObject* = object of PyObject
+    obItem*: UncheckedArray[PyObjectPtr]
+
   PyStructSequenceFieldPtr = ptr PyStructSequenceField
   PyStructSequenceField* = object
     name*: cstring
@@ -1907,7 +1911,8 @@ proc tupleGetSlice*(p: PyObjectPtr; low: PySizeT; high: PySizeT): PyObjectPtr {.
   cdecl, importc: "PyTuple_GetSlice" dynlib: libraryString.}
 proc tupleSetItem*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr): cint {.cdecl, 
   importc: "PyTuple_SetItem" dynlib: libraryString.}
-#proc PyTuple_SET_ITEM*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr) {.cdecl, importc, dynlib: libraryString.}
+template tupleSetItemNoErrorCheck*(p: PyObjectPtr; pos: PySizeT; o: PyObjectPtr) =
+    (cast[PyTupleObjectPtr](p)).obItem[pos] = o
 proc tupleResize*(p: ptr PyObjectPtr; newsize: PySizeT): cint {.cdecl, 
   importc: "_tupleResize", dynlib: libraryString.}
 proc tupleClearFreeList*(): cint {.cdecl, importc: "PyTuple_ClearFreeList" 
@@ -2325,7 +2330,7 @@ var
 
 # #define PyWeakref_CheckRef(op) PyObject_TypeCheck(op, &_PyWeakref_RefType)
 template weakrefCheckRef*(op): cint = 
-  objectTypeCheck(op, addr(weakrefRefType))
+  PyObject_TypeCheck(op, addr(weakrefRefType))
 # #define PyWeakref_CheckProxy(op) ((Py_TYPE(op) == &_PyWeakref_ProxyType) || (Py_TYPE(op) == &_PyWeakref_CallableProxyType))
 template weakrefCheckProxy*(op): cint = 
   ((pyType(op) == addr(weakrefProxyType)) or 
