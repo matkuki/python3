@@ -15,15 +15,25 @@ import
   strutils,
   sets
 
+# Python 3.5 introduced a few changes to some structs, so there has
+# to be a way to determine which Python 3 version the user will be using!
+const
+  PYTHON_VERSION = 3.0
+
+# Display the used Python 3 version
+static:
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  echo "!! Compiling for Python ", PYTHON_VERSION, " !!"
+  echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+
 # Define the library filename
 when defined(windows): 
-  const libraryString = "python(35|34|33|32|31|3).dll"
+  const libraryString = "python(36|35|34|33|32|31|3).dll"
 elif defined(macosx):
-  const libraryString = "libpython(3.5|3.4|3.3|3.2|3.1|3).dylib"
+  const libraryString = "libpython(3.6|3.5|3.4|3.3|3.2|3.1|3).dylib"
 else: 
-  const versionString = ".1"
-  const libraryString = "libpython(3.5|3.4|3.3|3.2|3.1|3).so" & versionString
-
+  const versionString = ".1.0"
+  const libraryString = "libpython(3.6m|3.6|3.5m|3.5|3.4m|3.4|3.3m|3.3|3.2m|3.2|3.1|3).so" & versionString
 
 ## Forward declarations for helper procedures needed before their declaration
 proc libCandidates*(s: string, dest: var seq[string])
@@ -1563,8 +1573,8 @@ type
   PyUCS1* = cuchar
   PyUCS2* = cushort
 
-when sizeof(int) == 4: 
-  type 
+when (sizeof(int) == 4) or (defined(posix) and sizeof(cuint) == 4):
+  type
     PyUCS4* = cuint
 elif sizeof(clong) == 4: 
   type 
@@ -2166,25 +2176,52 @@ proc fileWriteString*(s: cstring; p: PyObjectPtr): cint {.cdecl,
   importc: "PyFile_WriteString" dynlib: libraryString.}
 
 #Module Objects
-type
-  PyModuleDefBasePtr* = ptr PyModuleDefBase
-  PyModuleDefBase* = object 
-    ob_base*: PyObject
-    m_init*: proc (): PyObjectPtr {.cdecl.}
-    m_index*: PySizeT
-    m_copy*: PyObjectPtr
-
-  PyModuleDefPtr* = ptr PyModuleDef
-  PyModuleDef* = object 
-    m_base*: PyModuleDefBase
-    m_name*: cstring
-    m_doc*: cstring
-    m_size*: PySizeT
-    m_methods*: PyMethodDefPtr
-    m_reload*: Inquiry
-    m_traverse*: TraverseProc
-    m_clear*: Inquiry
-    m_free*: FreeFunc
+when PYTHON_VERSION >= 3.5:
+ type
+    PyModuleDefBasePtr* = ptr PyModuleDefBase
+    PyModuleDefBase* = object 
+      ob_base*: PyObject
+      m_init*: proc (): PyObjectPtr {.cdecl.}
+      m_index*: PySizeT
+      m_copy*: PyObjectPtr
+  
+  
+    PyModuleDefPtr* = ptr PyModuleDef
+    PyModuleDef* {.final.}  = object
+      m_base*: PyModuleDefBase
+      m_name*: cstring
+      m_doc*: cstring
+      m_size*: PySizeT
+      m_methods*: PyMethodDefPtr
+      m_slots*: PyModuleDefSlotPtr
+      m_traverse*: TraverseProc
+      m_clear*: Inquiry
+      m_free*: FreeFunc
+    
+    PyModuleDefSlotPtr* = ptr PyModuleDefSlot
+    PyModuleDefSlot* = object
+      slot*: cint
+      value*: pointer
+else:
+  type
+    PyModuleDefBasePtr* = ptr PyModuleDefBase
+    PyModuleDefBase* = object 
+      ob_base*: PyObject
+      m_init*: proc (): PyObjectPtr {.cdecl.}
+      m_index*: PySizeT
+      m_copy*: PyObjectPtr
+      
+    PyModuleDefPtr* = ptr PyModuleDef
+    PyModuleDef* = object 
+      m_base*: PyModuleDefBase
+      m_name*: cstring
+      m_doc*: cstring
+      m_size*: PySizeT
+      m_methods*: PyMethodDefPtr
+      m_reload*: Inquiry
+      m_traverse*: TraverseProc
+      m_clear*: Inquiry
+      m_free*: FreeFunc  
     
 var moduleType*: PyTypeObject = cast[PyTypeObject](
                  dynlib.symAddr(libraryHandle, "PyModule_Type"))

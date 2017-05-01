@@ -1,6 +1,6 @@
 [Package]
 name: "python3"
-version: "1.1"
+version: "1.2"
 author: "Matic Kukovec"
 description: "Wrapper to interface with Python 3 interpreter"
 license: "MIT"
