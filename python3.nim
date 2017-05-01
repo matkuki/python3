@@ -1123,7 +1123,7 @@ proc objectNot*(o: PyObjectPtr): cint {.cdecl, importc: "PyObject_Not"
   dynlib: libraryString.}
 proc objectType*(o: PyObjectPtr): PyObjectPtr {.cdecl, importc: "PyObject_Type" 
   dynlib: libraryString.}
-template objectTypeCheck*(ob, tp): expr = 
+template objectTypeCheck*(ob, tp) = 
   (pyType(ob) == tp or typeIsSubtype(pyType(ob), (tp)) == 1)
 proc objectLength*(o: PyObjectPtr): PySizeT {.cdecl, importc: "PyObject_Length" 
   dynlib: libraryString.}
@@ -1374,8 +1374,8 @@ proc typeGetSlot*(typ: PyTypeObjectPtr; slot: cint): pointer {.cdecl,
 var noneStruct*: PyObject = cast[PyObject](
                  dynlib.symAddr(libraryHandle, "_Py_NoneStruct"))
 
-template none*(): expr = addr(noneStruct)
-template returnNone*(): expr =
+template none*() = addr(noneStruct)
+template returnNone*() =
     incref(none())
     return none()
 
@@ -1384,11 +1384,11 @@ var PyLongType*: PyTypeObject = cast[PyTypeObject](
                   dynlib.symAddr(libraryHandle, "PyLong_Type"))
 const Py_TPFLAGS_LONG_SUBCLASS = culong(1) shl 24
 
-template typeHasFeature*(t, f): expr =
+template typeHasFeature*(t, f) =
   ((uint32(t.tpFlags) and (f)) != 0)
-template longCheck*(op): expr =
+template longCheck*(op) =
   typeHasFeature(pyType(op), Py_TPFLAGS_LONG_SUBCLASS)
-template longCheckExact*(op): expr =
+template longCheckExact*(op) =
   (pyType(op) == addr(PyLongType))
 
 proc longFromLong*(v: clong): PyObjectPtr {.cdecl, importc: "PyLong_FromLong" 
@@ -2278,13 +2278,13 @@ var
   callIterType*: PyTypeObject = cast[PyTypeObject](
                  dynlib.symAddr(libraryHandle, "PyCallIter_Type"))
 
-template refcnt*(ob): expr = cast[PyObjectPtr](ob).obRefcnt
-template pyType*(ob): expr = cast[PyObjectPtr](ob).obType
-template size*(ob): expr = cast[PyObjectPtr](ob).obSize
+template refcnt*(ob) = cast[PyObjectPtr](ob).obRefcnt
+template pyType*(ob) = cast[PyObjectPtr](ob).obType
+template size*(ob) = cast[PyObjectPtr](ob).obSize
 # #define PyCallIter_Check(op) (Py_TYPE(op) == &PyCallIter_Type)
-template callIterCheck*(op): expr = Py_TYPE(op) == addr(callIterType)
+template callIterCheck*(op) = Py_TYPE(op) == addr(callIterType)
 # #define PySeqIter_Check(op) (Py_TYPE(op) == &PySeqIter_Type)
-template seqIterCheck*(op): expr = Py_TYPE(op) == addr(seqIterType)
+template seqIterCheck*(op) = Py_TYPE(op) == addr(seqIterType)
 proc seqIterNew*(seq: PyObjectPtr): PyObjectPtr {.cdecl, 
   importc: "PySeqIter_New" dynlib: libraryString.}
 proc callIterNew*(callable: PyObjectPtr; sentinel: PyObjectPtr): PyObjectPtr {.
@@ -2373,7 +2373,7 @@ template weakrefCheckProxy*(op): cint =
   ((pyType(op) == addr(weakrefProxyType)) or 
    (pyType(op) == addr(weakrefCallableProxyType)))
 # #define PyWeakref_Check(op) (PyWeakref_CheckRef(op) || PyWeakref_CheckProxy(op))
-template weakrefCheck*(ob): expr = weakrefCheckRef(op) or weakrefCheckProxy(op)
+template weakrefCheck*(ob) = weakrefCheckRef(op) or weakrefCheckProxy(op)
 proc weakrefNewRef*(ob: PyObjectPtr; callback: PyObjectPtr): PyObjectPtr {.
   cdecl, importc: "PyWeakref_NewRef" dynlib: libraryString.}
 proc weakrefNewProxy*(ob: PyObjectPtr; callback: PyObjectPtr): PyObjectPtr {.

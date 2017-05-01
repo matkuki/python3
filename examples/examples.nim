@@ -170,13 +170,13 @@ proc emb_numargs(self: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl.} =
     return nil
   return longFromLong(numargs)
 
-template pyObjectHeadInit(typ): expr =
+template pyObjectHeadInit(typ) =
   PyObject(
     ob_refcnt: 1,
     ob_type: typ
   )
 
-template pyModuleDefHeadInit(): expr =
+template pyModuleDefHeadInit() =
   PyModuleDefBase(
     ob_base: pyObjectHeadInit(nil),
     m_init: nil,
