@@ -1,5 +1,7 @@
 # Python 3 wrapper for Nim [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag)
 
+## NOTIFICATION: <br></br>There will be a large upgrade which will add static bindings, for building Python3 modules that statically link to the Python3 interpreter! To current bindings (dynamic) will be stay unchanged! binding type selection will be selectable with compile flags and described in this README.
+
 ## Description:
 Nim wrapper for the Python 3 programming language.<br>
 Based on the official nim-lang/python wrapper.
