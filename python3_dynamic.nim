@@ -2444,70 +2444,73 @@ type
     days*: int                # -MAX_DELTA_DAYS <= days <= MAX_DELTA_DAYS 
     seconds*: int             # 0 <= seconds < 24*3600 is invariant 
     microseconds*: int        # 0 <= microseconds < 1000000 is invariant 
-  
 
-proc dateCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDate_Check" 
-  dynlib: libraryString.}
-proc dateCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
-  importc: "PyDate_CheckExact" dynlib: libraryString.}
-proc dateTimeCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDateTime_Check" 
-  dynlib: libraryString.}
-proc dateTimeCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
-  importc: "PyDateTime_CheckExact" dynlib: libraryString.}
-proc timeCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTime_Check" 
-  dynlib: libraryString.}
-proc timeCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
-  importc: "PyTime_CheckExact" dynlib: libraryString.}
-proc deltaCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDelta_Check" 
-  dynlib: libraryString.}
-proc deltaCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
-  importc: "PyDelta_CheckExact" dynlib: libraryString.}
-proc tzInfoCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTZInfo_Check" 
-  dynlib: libraryString.}
-proc tzInfoCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
-  importc: "PyTZInfo_CheckExact" dynlib: libraryString.}
-proc dateFromDate*(year: cint; month: cint; day: cint): PyObjectPtr {.cdecl, 
-  importc: "PyDate_FromDate" dynlib: libraryString.}
-proc dateTimeFromDateAndTime*(year: cint; month: cint; day: cint; hour: cint;
-  minute: cint; second: cint; usecond: cint): PyObjectPtr {.cdecl, 
-  importc: "PyDateTime_FromDateAndTime" dynlib: libraryString.}
-proc timeFromTime*(hour: cint; minute: cint; second: cint;
-  usecond: cint): PyObjectPtr {.cdecl, importc: "PyTime_FromTime" 
-  dynlib: libraryString.}
-proc deltaFromDSU*(days: cint; seconds: cint; useconds: cint): PyObjectPtr {.
-  cdecl, importc: "PyDelta_FromDSU" dynlib: libraryString.}
-proc dateTimeGETYEAR*(o: PyDateTime_DatePtr): cint {.cdecl, 
-  importc: "PyDateTime_GET_YEAR" dynlib: libraryString.}
-proc dateTimeGETMONTH*(o: PyDateTime_DatePtr): cint {.cdecl, 
-  importc: "PyDateTime_GET_MONTH" dynlib: libraryString.}
-proc dateTimeGETDAY*(o: PyDateTime_DatePtr): cint {.cdecl, 
-  importc: "PyDateTime_GET_DAY" dynlib: libraryString.}
-proc dateTimeDATEGETHOUR*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
-  importc: "PyDateTime_DATE_GET_HOUR" dynlib: libraryString.}
-proc dateTimeDATEGETMINUTE*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
-  importc: "PyDateTime_DATE_GET_MINUTE" dynlib: libraryString.}
-proc dateTimeDATEGETSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
-  importc: "PyDateTime_DATE_GET_SECOND" dynlib: libraryString.}
-proc dateTimeDATEGETMICROSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
-  importc: "PyDateTime_DATE_GET_MICROSECOND" dynlib: libraryString.}
-proc dateTimeTIMEGETHOUR*(o: PyDateTime_TimePtr): cint {.cdecl, 
-  importc: "PyDateTime_TIME_GET_HOUR" dynlib: libraryString.}
-proc dateTimeTIMEGETMINUTE*(o: PyDateTime_TimePtr): cint {.cdecl, 
-  importc: "PyDateTime_TIME_GET_MINUTE" dynlib: libraryString.}
-proc dateTimeTIMEGETSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, 
-  importc: "PyDateTime_TIME_GET_SECOND" dynlib: libraryString.}
-proc dateTimeTIMEGETMICROSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, 
-  importc: "PyDateTime_TIME_GET_MICROSECOND" dynlib: libraryString.}
-proc dateTimeDeltaGETDAYS*(o: PyDateTimeDeltaPtr): cint {.cdecl, 
-  importc: "PyDateTimeDelta_GET_DAYS" dynlib: libraryString.}
-proc dateTimeDeltaGETSECONDS*(o: PyDateTimeDeltaPtr): cint {.cdecl, 
-  importc: "PyDateTimeDelta_GET_SECONDS" dynlib: libraryString.}
-proc dateTimeDeltaGETMICROSECOND*(o: PyDateTimeDeltaPtr): cint {.cdecl, 
-  importc: "PyDateTimeDelta_GET_MICROSECOND" dynlib: libraryString.}
-proc dateTimeFromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, 
-  importc: "PyDateTime_FromTimestamp" dynlib: libraryString.}
-proc dateFromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, 
-  importc: "PyDate_FromTimestamp" dynlib: libraryString.}
+#[
+    # These are all C macros that need to be converted to templates
+    
+    proc dateCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDate_Check" 
+    dynlib: libraryString.}
+    proc dateCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
+    importc: "PyDate_CheckExact" dynlib: libraryString.}
+    proc dateTimeCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDateTime_Check" 
+    dynlib: libraryString.}
+    proc dateTimeCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
+    importc: "PyDateTime_CheckExact" dynlib: libraryString.}
+    proc timeCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTime_Check" 
+    dynlib: libraryString.}
+    proc timeCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
+    importc: "PyTime_CheckExact" dynlib: libraryString.}
+    proc deltaCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyDelta_Check" 
+    dynlib: libraryString.}
+    proc deltaCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
+    importc: "PyDelta_CheckExact" dynlib: libraryString.}
+    proc tzInfoCheck*(ob: PyObjectPtr): cint {.cdecl, importc: "PyTZInfo_Check" 
+    dynlib: libraryString.}
+    proc tzInfoCheckExact*(ob: PyObjectPtr): cint {.cdecl, 
+    importc: "PyTZInfo_CheckExact" dynlib: libraryString.}
+    proc dateFromDate*(year: cint; month: cint; day: cint): PyObjectPtr {.cdecl, 
+    importc: "PyDate_FromDate" dynlib: libraryString.}
+    proc dateTimeFromDateAndTime*(year: cint; month: cint; day: cint; hour: cint;
+    minute: cint; second: cint; usecond: cint): PyObjectPtr {.cdecl, 
+    importc: "PyDateTime_FromDateAndTime" dynlib: libraryString.}
+    proc timeFromTime*(hour: cint; minute: cint; second: cint;
+    usecond: cint): PyObjectPtr {.cdecl, importc: "PyTime_FromTime" 
+    dynlib: libraryString.}
+    proc deltaFromDSU*(days: cint; seconds: cint; useconds: cint): PyObjectPtr {.
+    cdecl, importc: "PyDelta_FromDSU" dynlib: libraryString.}
+    proc dateTimeGETYEAR*(o: PyDateTime_DatePtr): cint {.cdecl, 
+    importc: "PyDateTime_GET_YEAR" dynlib: libraryString.}
+    proc dateTimeGETMONTH*(o: PyDateTime_DatePtr): cint {.cdecl, 
+    importc: "PyDateTime_GET_MONTH" dynlib: libraryString.}
+    proc dateTimeGETDAY*(o: PyDateTime_DatePtr): cint {.cdecl, 
+    importc: "PyDateTime_GET_DAY" dynlib: libraryString.}
+    proc dateTimeDATEGETHOUR*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
+    importc: "PyDateTime_DATE_GET_HOUR" dynlib: libraryString.}
+    proc dateTimeDATEGETMINUTE*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
+    importc: "PyDateTime_DATE_GET_MINUTE" dynlib: libraryString.}
+    proc dateTimeDATEGETSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
+    importc: "PyDateTime_DATE_GET_SECOND" dynlib: libraryString.}
+    proc dateTimeDATEGETMICROSECOND*(o: PyDateTime_DateTimePtr): cint {.cdecl, 
+    importc: "PyDateTime_DATE_GET_MICROSECOND" dynlib: libraryString.}
+    proc dateTimeTIMEGETHOUR*(o: PyDateTime_TimePtr): cint {.cdecl, 
+    importc: "PyDateTime_TIME_GET_HOUR" dynlib: libraryString.}
+    proc dateTimeTIMEGETMINUTE*(o: PyDateTime_TimePtr): cint {.cdecl, 
+    importc: "PyDateTime_TIME_GET_MINUTE" dynlib: libraryString.}
+    proc dateTimeTIMEGETSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, 
+    importc: "PyDateTime_TIME_GET_SECOND" dynlib: libraryString.}
+    proc dateTimeTIMEGETMICROSECOND*(o: PyDateTime_TimePtr): cint {.cdecl, 
+    importc: "PyDateTime_TIME_GET_MICROSECOND" dynlib: libraryString.}
+    proc dateTimeDeltaGETDAYS*(o: PyDateTimeDeltaPtr): cint {.cdecl, 
+    importc: "PyDateTimeDelta_GET_DAYS" dynlib: libraryString.}
+    proc dateTimeDeltaGETSECONDS*(o: PyDateTimeDeltaPtr): cint {.cdecl, 
+    importc: "PyDateTimeDelta_GET_SECONDS" dynlib: libraryString.}
+    proc dateTimeDeltaGETMICROSECOND*(o: PyDateTimeDeltaPtr): cint {.cdecl, 
+    importc: "PyDateTimeDelta_GET_MICROSECOND" dynlib: libraryString.}
+    proc dateTimeFromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, 
+    importc: "PyDateTime_FromTimestamp" dynlib: libraryString.}
+    proc dateFromTimestamp*(args: PyObjectPtr): PyObjectPtr {.cdecl, 
+    importc: "PyDate_FromTimestamp" dynlib: libraryString.}
+]#
 
 #Initialization, Finalization, and Threads
 type 

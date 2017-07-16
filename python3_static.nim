@@ -1060,9 +1060,9 @@ proc PyList_New*(len: Py_ssize_t): ptr PyObject {.header: "Python.h", importc: "
 proc PyList_Size*(list: ptr PyObject): Py_ssize_t {.header: "Python.h", importc: "PyList_Size".}
 proc PyList_GET_SIZE*(list: ptr PyObject): Py_ssize_t {.header: "Python.h", importc: "PyList_GET_SIZE", cdecl.}
 proc PyList_GetItem*(list: ptr PyObject; index: Py_ssize_t): ptr PyObject {.header: "Python.h", importc: "PyList_GetItem".}
-proc PyList_GET_ITEM*(list: ptr PyObject; i: Py_ssize_t): ptr PyObject {.header: "Python.h", importc: "PyList_GET_ITEM", cdecl.}
+proc PyList_GET_ITEM_MACRO*(list: ptr PyObject; i: Py_ssize_t): ptr PyObject {.header: "Python.h", importc: "PyList_GET_ITEM", cdecl.}
 proc PyList_SetItem*(list: ptr PyObject; index: Py_ssize_t; item: ptr PyObject): cint {.header: "Python.h", importc: "PyList_SetItem".}
-proc PyList_SET_ITEM*(list: ptr PyObject; i: Py_ssize_t; o: ptr PyObject) {.header: "Python.h", importc: "PyList_SET_ITEM", cdecl.}
+proc PyList_SET_ITEM_MACRO*(list: ptr PyObject; i: Py_ssize_t; o: ptr PyObject) {.header: "Python.h", importc: "PyList_SET_ITEM", cdecl.}
 proc PyList_Insert*(list: ptr PyObject; index: Py_ssize_t; item: ptr PyObject): cint {.header: "Python.h", importc: "PyList_Insert".}
 proc PyList_Append*(list: ptr PyObject; item: ptr PyObject): cint {.header: "Python.h", importc: "PyList_Append".}
 proc PyList_GetSlice*(list: ptr PyObject; low: Py_ssize_t; high: Py_ssize_t): ptr PyObject {.header: "Python.h", importc: "PyList_GetSlice".}
