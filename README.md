@@ -1,5 +1,7 @@
 # Python 3 wrapper for Nim [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble.png)](https://github.com/yglukhov/nimble-tag)
 
+## These are raw Python 3 bindings which are used the same as you would in C! If you are looking for a seamless integration between Pyhon 3 and Nim, check out *yglukhov's* excelent library ![*nimpy*](https://github.com/yglukhov/nimpy).
+
 ## New static/dynamic functionality incorporated into the wrapper. Please report any bugs!
 
 ## Description:
