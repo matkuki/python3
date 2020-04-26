@@ -78,8 +78,8 @@ const
 
 # Select binding system
 when defined(py3_static):
-    include python3_static
+    include "static/python3_static"
 elif defined(py3_dynamic):
-    include python3_dynamic
+    include "dynamic/python3_dynamic"
 
 
