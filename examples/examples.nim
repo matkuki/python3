@@ -170,13 +170,13 @@ proc emb_numargs(self: PyObjectPtr; args: PyObjectPtr): PyObjectPtr {.cdecl.} =
     return nil
   return longFromLong(numargs)
 
-template pyObjectHeadInit(typ) =
+template pyObjectHeadInit(typ: untyped): PyObject =
   PyObject(
     ob_refcnt: 1,
     ob_type: typ
   )
 
-template pyModuleDefHeadInit() =
+template pyModuleDefHeadInit(): PyModuleDefBase =
   PyModuleDefBase(
     ob_base: pyObjectHeadInit(nil),
     m_init: nil,
@@ -205,7 +205,6 @@ EmbModule = PyModuleDef(
     m_doc: "Nim's embedded Python module",
     m_size: -1,
     m_methods: cast[PyMethodDefPtr](addr(EmbMethods[0])),
-    m_reload: nil,
     m_traverse: nil,
     m_clear: nil,
     m_free: nil,
@@ -237,10 +236,10 @@ proc Example7() =
 getPythonVersion()
 #Example1()
 #Example2()
-#Example3()
+Example3()
 #Example4()
-#Example5()
+Example5()
 #Example6()
-#Example7()
+Example7()
 
 

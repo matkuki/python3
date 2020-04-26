@@ -17,19 +17,18 @@ import
 
 # Define the library filename
 when defined(windows): 
-  const libraryString = "python(36|35|34|33|32|31|3).dll"
+  const libraryString = "python(38|37|36|35|34|33|32|31|3).dll"
 elif defined(macosx):
-   const libraryString = "libpython(3.6|3.5|3.4|3.3|3.2|3.1|3).dylib"
+   const libraryString = "libpython(3.8|3.7|3.6|3.5|3.4|3.3|3.2|3.1|3).dylib"
 else: 
   const versionString = ".1.0"
-  const libraryString = "libpython(3.6m|3.6|3.5m|3.5|3.4m|3.4|3.3m|3.3|3.2m|3.2|3.1|3).so" & versionString
+  const libraryString = "libpython(3.8m|3.8|3.7m|3.7|3.6m|3.6|3.5m|3.5|3.4m|3.4|3.3m|3.3|3.2m|3.2|3.1|3).so" & versionString
 
 ## Forward declarations for helper procedures needed before their declaration
 proc libCandidates*(s: string, dest: var seq[string])
 proc loadDllLib*(libNames: string): LibHandle
 
 type
-  UncheckedArray*{.unchecked.}[T] = array[1,T]
   PySizeTPtr = ptr PySizeT
   PySizeT* = int # C definition: 'typedef long PySizeT'
   PyHashT* = PySizeT # C definition: 'typedef PySizeT Py_hash_t;'

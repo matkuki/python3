@@ -10,46 +10,41 @@
 
 {.deadCodeElim: on.}
 
-import
-  dynlib,
-  strutils,
-  sets
+import strutils
 
 
 # Python 3.5 introduced a few changes to some structs, so there has
 # to be a way to determine which Python 3 version the user will be using!
-static:
-    when not defined(py3_version):
-        var error = "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-        error    &= "!! Python 3 ERROR:                                                                      !!\n"
-        error    &= "!!     Select the Python 3 version by compiling with the following flag:                !!\n"
-        error    &= "!!         -d:py3_version=value(float)                                                        !!\n"
-        error    &= "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        quit error
-    else:
-        const
-            py3_version {.strdefine.}: string = "3.0"
-            PYTHON_VERSION* = parseFloat(py3_version)
+when not defined(py3_version):
+    var error = "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+    error    &= "!! Python 3 ERROR:                                                                      !!\n"
+    error    &= "!!     Select the Python 3 version by compiling with the following flag:                !!\n"
+    error    &= "!!         -d:py3_version=value(float)                                                        !!\n"
+    error    &= "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    quit error
+else:
+    const
+        py3_version {.strdefine.}: string = "3.0"
+        PYTHON_VERSION* = parseFloat(py3_version)
         
 
 # Display compilation information
-static:
-    when defined(py3_static):
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        echo "!! Compiling for Python ", PYTHON_VERSION, " (STATIC) !!"
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    elif defined(py3_dynamic):
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        echo "!! Compiling for Python ", PYTHON_VERSION, " (DYNAMIC) !!"
-        echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-    else:
-        var error = "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-        error    &= "!! Python 3 ERROR:                                                                      !!\n"
-        error    &= "!!     Either static or dynamic binding system has to be selected at compile time!      !!\n"
-        error    &= "!!     Select the Python 3 binding system by compiling with one of the following flags: !!\n"
-        error    &= "!!         -d:py3_static or -d:py3_dynamic                                          !!\n"
-        error    &= "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        quit error
+when defined(py3_static):
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!! Compiling for Python ", PYTHON_VERSION, " (STATIC) !!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+elif defined(py3_dynamic):
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "!! Compiling for Python ", PYTHON_VERSION, " (DYNAMIC) !!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+else:
+    var error = "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+    error    &= "!! Python 3 ERROR:                                                                      !!\n"
+    error    &= "!!     Either static or dynamic binding system has to be selected at compile time!      !!\n"
+    error    &= "!!     Select the Python 3 binding system by compiling with one of the following flags: !!\n"
+    error    &= "!!         -d:py3_static or -d:py3_dynamic                                              !!\n"
+    error    &= "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    quit error
 
 
 # Python 3 common constants/enums/symbols/...
